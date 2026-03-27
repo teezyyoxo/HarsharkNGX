@@ -1,4 +1,4 @@
-# Harshark Next
+# HarsharkNGX
 
 A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
 
