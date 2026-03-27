@@ -1,6 +1,6 @@
 # Harshark Next
 
-A modernized, cross-platform HAR viewer inspired by the original `MacroPolo/harshark` project.
+A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
 
 ## What's new
 
