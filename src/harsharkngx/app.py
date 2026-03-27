@@ -43,8 +43,8 @@ except Exception:  # pragma: no cover
 
 SETTINGS_LAYOUT_VERSION = 2
 
-APP_NAME = "Harshark Next"
-APP_VERSION = "1.2.0"
+APP_NAME = "HarsharkNGX"
+APP_VERSION = "1.3.0"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -348,7 +348,7 @@ class MainWindow(QMainWindow):
         self._column_actions: dict[str, QAction] = {}
         self._width_preset_actions: dict[str, QAction] = {}
         self._waterfall_delegate = WaterfallDelegate(self)
-        self.settings = QSettings("OpenAI", APP_NAME)
+        self.settings = QSettings("Montel G.", APP_NAME)
 
         self._build_ui()
         self._restore_window_state()
@@ -1025,7 +1025,7 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
 def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    app.setOrganizationName("OpenAI")
+    app.setOrganizationName("teezyyoxo")
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

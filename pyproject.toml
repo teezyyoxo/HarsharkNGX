@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "harshark-next"
-version = "3.1.0"
+name = "harsharkngx"
+version = "1.3.0"
 description = "Modernized offline HAR viewer with macOS light/dark mode support with saved column preferences"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-  { name = "OpenAI for Montel G." }
+  { name = "Montel G." }
 ]
 dependencies = [
   "PySide6>=6.11.0",
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-harshark-next = "harshark_next.__main__:main"
+harshark-next = "harsharkngx.__main__:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
