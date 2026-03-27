@@ -2,7 +2,7 @@
 
 A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
 
-## ✨ Features
+## Features
 
 - Modernized for current Python and Qt using `PySide6` (replacing legacy PyQt5)
 - Native desktop UI (with macOS light/dark mode support + including live theme switching)
@@ -39,7 +39,7 @@ source .venv/bin/activate
 python -m harsharkngx
 ```
 
-## 💡 Pro Tip: Create a One-Command Launcher
+## Pro Tip: Create a One-Command Launcher
 
 If you use HarsharkNGX frequently, you can create a simple shell alias so you can launch it from anywhere with a single command.
 
