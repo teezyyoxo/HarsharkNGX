@@ -10,15 +10,8 @@ from urllib.parse import parse_qsl, urlparse
 
 from bs4 import BeautifulSoup
 from lxml import etree
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSettings, Qt, QThread, Signal
-from PySide6.QtGui import (
-    QAction,
-    QColor,
-    QGuiApplication,
-    QKeySequence,
-    QPalette,
-    QTextOption,
-)
+from PySide6.QtCore import QByteArray, QAbstractTableModel, QModelIndex, QObject, QRectF, QSettings, Qt, QThread, Signal
+from PySide6.QtGui import QAction, QColor, QGuiApplication, QKeySequence, QPainter, QPalette, QTextOption
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -32,7 +25,10 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStatusBar,
+    QStyle,
+    QStyledItemDelegate,
     QStyleFactory,
+    QStyleOptionViewItem,
     QTabWidget,
     QTableView,
     QToolBar,
@@ -45,8 +41,10 @@ try:
 except Exception:  # pragma: no cover
     darkdetect = None
 
+SETTINGS_LAYOUT_VERSION = 2
+
 APP_NAME = "Harshark Next"
-APP_VERSION = "3.1.0"
+APP_VERSION = "1.2.0"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -56,8 +54,53 @@ DEFAULT_COLUMNS = [
     "Host",
     "Path",
     "Mime Type",
+    "Waterfall",
     "Time (ms)",
 ]
+DEFAULT_WIDTH_PRESET = "Balanced"
+COLUMN_WIDTH_PRESETS: dict[str, dict[str, int]] = {
+    "Compact": {
+        "Started": 170,
+        "Method": 78,
+        "Status": 78,
+        "Protocol": 88,
+        "Host": 170,
+        "Path": 360,
+        "Mime Type": 180,
+        "Waterfall": 150,
+        "Time (ms)": 95,
+    },
+    "Balanced": {
+        "Started": 210,
+        "Method": 90,
+        "Status": 90,
+        "Protocol": 95,
+        "Host": 220,
+        "Path": 520,
+        "Mime Type": 220,
+        "Waterfall": 200,
+        "Time (ms)": 110,
+    },
+    "Comfortable": {
+        "Started": 240,
+        "Method": 100,
+        "Status": 100,
+        "Protocol": 110,
+        "Host": 260,
+        "Path": 660,
+        "Mime Type": 260,
+        "Waterfall": 240,
+        "Time (ms)": 120,
+    },
+}
+STATUS_COLOR_MAP = {
+    "1xx": QColor("#5c6bc0"),
+    "2xx": QColor("#2e7d32"),
+    "3xx": QColor("#6a1b9a"),
+    "4xx": QColor("#ef6c00"),
+    "5xx": QColor("#c62828"),
+    "other": QColor("#546e7a"),
+}
 
 
 @dataclass(slots=True)
@@ -70,6 +113,7 @@ class HarEntry:
     path: str
     mime_type: str
     total_time_ms: str
+    total_time_value: float
     request_headers: str
     request_query: str
     request_cookies: str
@@ -90,6 +134,7 @@ class HarEntry:
             "Host": self.host,
             "Path": self.path,
             "Mime Type": self.mime_type,
+            "Waterfall": "",
             "Time (ms)": self.total_time_ms,
         }
         return mapping.get(column, "")
@@ -115,6 +160,81 @@ class HarEntry:
             self.full_url,
         ]
         return "\n".join(part for part in parts if part)
+
+
+def status_bucket(status_text: str) -> str:
+    try:
+        status = int(status_text)
+    except Exception:
+        return "other"
+    if 100 <= status < 200:
+        return "1xx"
+    if 200 <= status < 300:
+        return "2xx"
+    if 300 <= status < 400:
+        return "3xx"
+    if 400 <= status < 500:
+        return "4xx"
+    if status >= 500:
+        return "5xx"
+    return "other"
+
+
+def status_color(status_text: str) -> QColor:
+    return STATUS_COLOR_MAP.get(status_bucket(status_text), STATUS_COLOR_MAP["other"])
+
+
+def muted(color: QColor, alpha: int) -> QColor:
+    toned = QColor(color)
+    toned.setAlpha(alpha)
+    return toned
+
+
+class WaterfallDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:  # type: ignore[override]
+        model = index.model()
+        if not isinstance(model, EntryTableModel):
+            super().paint(painter, option, index)
+            return
+
+        entry = model.entry_at(index.row())
+        if entry is None:
+            super().paint(painter, option, index)
+            return
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+        style = opt.widget.style() if opt.widget is not None else QApplication.style()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+        inner = option.rect.adjusted(8, 8, -8, -8)
+        if inner.width() <= 0 or inner.height() <= 0:
+            return
+
+        dark = option.palette.base().color().lightness() < 128
+        track_color = QColor("#3a3c43") if dark else QColor("#dde3ea")
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(track_color)
+        painter.drawRoundedRect(QRectF(inner), 4, 4)
+
+        max_time = max(model.max_time_ms(), 1.0)
+        ratio = max(0.0, min(entry.total_time_value / max_time, 1.0))
+        if ratio > 0:
+            fill_rect = QRectF(inner)
+            fill_rect.setWidth(max(6.0, fill_rect.width() * ratio))
+            fill_color = status_color(entry.status)
+            fill_color.setAlpha(220)
+            painter.setBrush(fill_color)
+            painter.drawRoundedRect(fill_rect, 4, 4)
+
+        if option.state & QStyle.State_Selected:
+            painter.setBrush(muted(option.palette.highlight().color(), 70))
+            painter.drawRoundedRect(QRectF(inner), 4, 4)
+
+        painter.restore()
 
 
 class EntryTableModel(QAbstractTableModel):
@@ -144,19 +264,21 @@ class EntryTableModel(QAbstractTableModel):
         if role == Qt.DisplayRole:
             return entry.column_value(column)
 
+        if role == Qt.TextAlignmentRole and column in {"Method", "Status", "Protocol", "Time (ms)"}:
+            return int(Qt.AlignCenter)
+
         if role == Qt.ForegroundRole and column == "Status":
-            try:
-                status = int(entry.status)
-            except Exception:
-                return None
-            if 200 <= status < 300:
-                return QColor("#00c853")
-            if 300 <= status < 400:
-                return QColor("#7c4dff")
-            if 400 <= status < 500:
-                return QColor("#ff9100")
-            if status >= 500:
-                return QColor("#ff5252")
+            return status_color(entry.status)
+
+        if role == Qt.BackgroundRole and column == "Status":
+            dark = QGuiApplication.palette().base().color().lightness() < 128
+            alpha = 72 if dark else 32
+            return muted(status_color(entry.status), alpha)
+
+        if role == Qt.ToolTipRole:
+            if column == "Waterfall":
+                return f"{entry.total_time_ms} ms"
+            return entry.column_value(column)
 
         return None
 
@@ -196,6 +318,11 @@ class EntryTableModel(QAbstractTableModel):
             return None
         return self.filtered_entries[row]
 
+    def max_time_ms(self) -> float:
+        if not self.filtered_entries:
+            return 1.0
+        return max(entry.total_time_value for entry in self.filtered_entries) or 1.0
+
 
 class ThemeListener(QObject):
     theme_changed = Signal(str)
@@ -219,6 +346,8 @@ class MainWindow(QMainWindow):
         self.current_path: Path | None = None
         self._theme_thread: QThread | None = None
         self._column_actions: dict[str, QAction] = {}
+        self._width_preset_actions: dict[str, QAction] = {}
+        self._waterfall_delegate = WaterfallDelegate(self)
         self.settings = QSettings("OpenAI", APP_NAME)
 
         self._build_ui()
@@ -247,12 +376,12 @@ class MainWindow(QMainWindow):
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.setSelectionMode(QTableView.SingleSelection)
         self.table.setAlternatingRowColors(True)
-        self.table.setSortingEnabled(True)
+        self.table.setSortingEnabled(False)
         self.table.setShowGrid(True)
         self.table.setWordWrap(False)
         self.table.setCornerButtonEnabled(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setStretchLastSection(False)
         self.table.horizontalHeader().setSectionsMovable(True)
         self.table.horizontalHeader().setSectionsClickable(True)
         self.table.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
@@ -288,6 +417,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
         self.setStatusBar(QStatusBar())
         self._build_column_actions()
+        self._build_width_preset_actions()
+        self._apply_special_column_behavior()
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -318,6 +449,7 @@ class MainWindow(QMainWindow):
 
         self.view_menu.addSeparator()
         self.columns_menu = self.view_menu.addMenu("Columns")
+        self.width_presets_menu = self.view_menu.addMenu("Column Width Preset")
 
         self.reset_columns_action = QAction("Reset Columns to Default", self)
         self.reset_columns_action.triggered.connect(self._reset_columns_to_default)
@@ -359,6 +491,15 @@ class MainWindow(QMainWindow):
             self.columns_menu.addAction(action)
             self._column_actions[column] = action
 
+    def _build_width_preset_actions(self) -> None:
+        self.width_presets_menu.clear()
+        self._width_preset_actions.clear()
+        for preset_name in COLUMN_WIDTH_PRESETS:
+            action = QAction(preset_name, self, checkable=True)
+            action.triggered.connect(lambda checked, name=preset_name: self._apply_column_width_preset(name))
+            self.width_presets_menu.addAction(action)
+            self._width_preset_actions[preset_name] = action
+
     def _make_text_tab(self, _name: str) -> QPlainTextEdit:
         edit = QPlainTextEdit()
         edit.setReadOnly(True)
@@ -386,7 +527,7 @@ class MainWindow(QMainWindow):
             (
                 f"Harshark Next {APP_VERSION}\n\n"
                 "A modernized offline HAR viewer inspired by the original Harshark project.\n"
-                "Built with PySide6, live macOS light/dark mode handling, and saved column preferences."
+                "Built with PySide6, live macOS light/dark mode handling, status color coding, and saved table layout preferences."
             ),
         )
 
@@ -561,12 +702,20 @@ class MainWindow(QMainWindow):
             )
 
         self._refresh_widget_tree()
+        self.table.viewport().update()
+
+    def _apply_special_column_behavior(self) -> None:
+        waterfall_index = self.model.columns.index("Waterfall")
+        self.table.setItemDelegateForColumn(waterfall_index, self._waterfall_delegate)
 
     def _show_header_menu(self, position) -> None:
         menu = QMenu(self)
         for column in self.model.columns:
-            action = self._column_actions[column]
-            menu.addAction(action)
+            menu.addAction(self._column_actions[column])
+        menu.addSeparator()
+        width_menu = menu.addMenu("Column Width Preset")
+        for preset_name in COLUMN_WIDTH_PRESETS:
+            width_menu.addAction(self._width_preset_actions[preset_name])
         menu.addSeparator()
         menu.addAction(self.reset_columns_action)
         header = self.table.horizontalHeader()
@@ -583,7 +732,24 @@ class MainWindow(QMainWindow):
         self.table.setColumnHidden(logical_index, not visible)
         self._save_column_state()
 
-    def _reset_columns_to_default(self) -> None:
+    def _set_checked_width_preset(self, preset_name: str) -> None:
+        for name, action in self._width_preset_actions.items():
+            action.blockSignals(True)
+            action.setChecked(name == preset_name)
+            action.blockSignals(False)
+
+    def _apply_column_width_preset(self, preset_name: str) -> None:
+        widths = COLUMN_WIDTH_PRESETS[preset_name]
+        for column, width in widths.items():
+            logical_index = self.model.columns.index(column)
+            self.table.setColumnWidth(logical_index, width)
+        self._set_checked_width_preset(preset_name)
+        self.settings.beginGroup(SETTINGS_GROUP)
+        self.settings.setValue("width_preset", preset_name)
+        self.settings.endGroup()
+        self._save_column_state()
+
+    def _reset_columns_to_default(self, save: bool = True) -> None:
         header = self.table.horizontalHeader()
         for index, column in enumerate(DEFAULT_COLUMNS):
             current_logical = self.model.columns.index(column)
@@ -593,8 +759,9 @@ class MainWindow(QMainWindow):
             action.blockSignals(True)
             action.setChecked(True)
             action.blockSignals(False)
-        self.table.resizeColumnsToContents()
-        self._save_column_state()
+        self._apply_column_width_preset(DEFAULT_WIDTH_PRESET)
+        if save:
+            self._save_column_state()
 
     def _restore_window_state(self) -> None:
         self.settings.beginGroup(SETTINGS_GROUP)
@@ -604,8 +771,8 @@ class MainWindow(QMainWindow):
         splitter_state = self.settings.value("splitter")
         if splitter_state is not None:
             self.main_splitter.restoreState(splitter_state)
-        self._restore_column_state()
         self.settings.endGroup()
+        self._restore_column_state()
 
     def _save_window_state(self) -> None:
         self.settings.beginGroup(SETTINGS_GROUP)
@@ -616,14 +783,27 @@ class MainWindow(QMainWindow):
 
     def _restore_column_state(self) -> None:
         self.settings.beginGroup(SETTINGS_GROUP)
+        stored_layout_version = self.settings.value("layout_version", 0)
         header_state = self.settings.value("header_state")
         hidden_columns = self.settings.value("hidden_columns", [])
+        width_preset = self.settings.value("width_preset", DEFAULT_WIDTH_PRESET)
         self.settings.endGroup()
 
-        if header_state is not None:
-            self.table.horizontalHeader().restoreState(header_state)
+        use_saved_header_state = False
+        try:
+            use_saved_header_state = int(stored_layout_version) == SETTINGS_LAYOUT_VERSION and isinstance(
+                header_state, QByteArray
+            )
+        except Exception:
+            use_saved_header_state = False
+
+        if use_saved_header_state:
+            use_saved_header_state = self.table.horizontalHeader().restoreState(header_state)
+
+        if not use_saved_header_state:
+            self._reset_columns_to_default(save=False)
         else:
-            self.table.resizeColumnsToContents()
+            self._set_checked_width_preset(str(width_preset))
 
         if isinstance(hidden_columns, str):
             hidden_columns = [hidden_columns]
@@ -636,11 +816,14 @@ class MainWindow(QMainWindow):
             action.setChecked(not hidden)
             action.blockSignals(False)
 
+        self._apply_special_column_behavior()
+
     def _save_column_state(self, *_args) -> None:
         hidden_columns = [
             column for index, column in enumerate(self.model.columns) if self.table.isColumnHidden(index)
         ]
         self.settings.beginGroup(SETTINGS_GROUP)
+        self.settings.setValue("layout_version", SETTINGS_LAYOUT_VERSION)
         self.settings.setValue("header_state", self.table.horizontalHeader().saveState())
         self.settings.setValue("hidden_columns", hidden_columns)
         self.settings.endGroup()
@@ -678,6 +861,7 @@ class MainWindow(QMainWindow):
             self._display_entry(entries[0])
         else:
             self._clear_details()
+        self.table.viewport().update()
 
     def _search_changed(self, text: str) -> None:
         self.model.apply_filter(text)
@@ -689,6 +873,7 @@ class MainWindow(QMainWindow):
             self._display_entry(self.model.filtered_entries[0])
         else:
             self._clear_details()
+        self.table.viewport().update()
 
     def _table_row_changed(self) -> None:
         index = self.table.currentIndex()
@@ -782,6 +967,17 @@ def _timestamp(value: str) -> str:
         return value
 
 
+def _normalize_ms(value: Any) -> tuple[str, float]:
+    try:
+        numeric = float(value)
+    except Exception:
+        text = str(value or "")
+        return text, 0.0
+
+    if numeric.is_integer():
+        return str(int(numeric)), numeric
+    return f"{numeric:.2f}", numeric
+
 
 def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
     log = payload.get("log", {})
@@ -797,6 +993,7 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
         body_text = _extract_body_text(request.get("postData"))
         response_text = _extract_body_text(response.get("content"))
         protocol = parsed.scheme.upper() if parsed.scheme else ""
+        total_time_text, total_time_value = _normalize_ms(item.get("time", ""))
 
         entry = HarEntry(
             started=_timestamp(str(item.get("startedDateTime", ""))),
@@ -806,7 +1003,8 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
             host=parsed.hostname or "",
             path=parsed.path or "/",
             mime_type=str(response.get("content", {}).get("mimeType", "")),
-            total_time_ms=str(item.get("time", "")),
+            total_time_ms=total_time_text,
+            total_time_value=total_time_value,
             request_headers=_fmt_pairs(request.get("headers")),
             request_query=_fmt_pairs(request.get("queryString")) or _fmt_query_from_url(url),
             request_cookies=_fmt_pairs(request.get("cookies")),
@@ -821,7 +1019,6 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
         entries.append(entry)
 
     return entries
-
 
 
 def main() -> None:
