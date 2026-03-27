@@ -2,26 +2,21 @@
 
 A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
 
-## What's new
+## ✨ Features
 
-- Updated for modern Python and Qt
-- Uses `PySide6` instead of the old `PyQt5==5.11.3`
-- Detects and follows macOS light/dark mode using `darkdetect`
-- Cleaner table model and splitter-based UI
-- Faster loading for common HAR files
-- Safer parsing and better handling of missing fields
-
-## Highlights
-
-- Native desktop UI built with PySide6
-- macOS light and dark mode support, including live theme switching while the app is open
-- Reorderable columns with saved layout state
-- Show or hide columns from the View menu or by right-clicking the table header
-- Column width presets: Compact, Balanced, and Comfortable
-- Status color coding for quick HTTP response scanning
+- Modernized for current Python and Qt using `PySide6` (replacing legacy PyQt5)
+- Native desktop UI (with macOS light/dark mode support + including live theme switching)
 - Waterfall timing column for visual request-duration comparison
-- Request and response detail panes for headers, parameters, cookies, bodies, and SAML-like XML payloads
-- Local-first workflow with no network dependency required to inspect HAR files
+- HTTP status color coding for quick response analysis
+- Reorderable columns with persistent layout (order, visibility, widths)
+- Column visibility toggling via View menu or header right-click menu
+- Column width presets: Compact, Balanced, Comfortable
+- Splitter-based UI with resizable table and detail panes
+- Detailed request/response inspection:
+  - headers, parameters, cookies, bodies
+  - SAML/XML payload formatting
+- Faster HAR loading and more robust parsing with improved handling of missing fields
+- Local-first workflow with no network dependency required
 
 ## Requirements
 
