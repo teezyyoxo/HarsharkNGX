@@ -22,7 +22,7 @@ A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/hars
 ## Requirements
 
 - Python 3.10+
-- macOS, Windows, or Linux
+- macOS, Linux, and *technically* Windows, but I have not tested this on a Windows machine yet. Stay tuned!
 
 ## Install
 
@@ -72,6 +72,7 @@ pip install --upgrade pip
 pip install -e .
 python -m harsharkngx
 ```
+
 ## Acknowledgements
 
 This project is inspired by the original Harshark project:
