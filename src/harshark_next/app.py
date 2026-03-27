@@ -527,7 +527,8 @@ class MainWindow(QMainWindow):
             (
                 f"Harshark Next {APP_VERSION}\n\n"
                 "A modernized offline HAR viewer inspired by the original Harshark project.\n"
-                "Built with PySide6, live macOS light/dark mode handling, status color coding, and saved table layout preferences."
+                "Built with PySide6, live macOS light/dark mode handling, status color coding, and saved table layout preferences.\n"
+                "Credit to @MarcoPolo (GitHub) for the original Harshark project.\n"
             ),
         )
 
