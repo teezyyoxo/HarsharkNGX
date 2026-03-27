@@ -1,6 +1,7 @@
 # HarsharkNGX
 
 A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
+<img width="2670" height="1456" alt="image" src="https://github.com/user-attachments/assets/b6bb5c0d-ebe5-465c-8556-39d796d4c7ae" />
 
 ## Features
 
