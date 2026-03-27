@@ -72,3 +72,9 @@ pip install --upgrade pip
 pip install -e .
 python -m harsharkngx
 ```
+## Acknowledgements
+
+This project is inspired by the original Harshark project:
+https://github.com/MacroPolo/harshark
+
+The original concept and foundation are credited to its author.
