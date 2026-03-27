@@ -44,6 +44,25 @@ source .venv/bin/activate
 python -m harsharkngx
 ```
 
+## 💡 Pro Tip: Create a One-Command Launcher
+
+If you use HarsharkNGX frequently, you can create a simple shell alias so you can launch it from anywhere with a single command.
+
+### macOS / Linux (zsh or bash)
+
+Add this to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+alias harshark='~/GitHub/harsharkngx/.venv/bin/python -m harsharkngx'
+```
+
+Then reload your shell (as applicable – I use zsh):
+```bash
+source ~/.zshrc
+```
+
+Now you can launch the app from anywhere by running `harshark`.
+
 ## Notes
 
 This is a best-effort modernization rather than a byte-for-byte fork. It keeps the spirit of the original app, but the codebase has been refreshed around a simpler Qt6 architecture.
