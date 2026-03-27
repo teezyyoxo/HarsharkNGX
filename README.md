@@ -57,13 +57,3 @@ pip install --upgrade pip
 pip install -e .
 python -m harsharkngx
 ```
-
-
-## New in 3.1.0
-
-- Better live theme switching while the app is already open
-- Saved splitter position and window geometry
-- Rearrange columns by dragging the header
-- Show or hide columns from View > Columns or by right-clicking the header
-- Column visibility and order are restored on the next launch
-- Reset Columns to Default option
