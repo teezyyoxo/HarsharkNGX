@@ -1,2 +1,0 @@
-[console_scripts]
-harshark-next = harshark_next.__main__:main

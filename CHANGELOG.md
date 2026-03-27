@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.3.0]
+- Renamed project to HarsharkNGX. (iykyk ✈)
+
 ## [1.2.0]
 
 ### Added
