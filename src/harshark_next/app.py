@@ -10,8 +10,15 @@ from urllib.parse import parse_qsl, urlparse
 
 from bs4 import BeautifulSoup
 from lxml import etree
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QGuiApplication, QIcon, QKeySequence, QTextOption
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSettings, Qt, QThread, Signal
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QGuiApplication,
+    QKeySequence,
+    QPalette,
+    QTextOption,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -19,11 +26,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSplitter,
     QStatusBar,
+    QStyleFactory,
     QTabWidget,
     QTableView,
     QToolBar,
@@ -37,6 +46,8 @@ except Exception:  # pragma: no cover
     darkdetect = None
 
 APP_NAME = "Harshark Next"
+APP_VERSION = "3.1.0"
+SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
     "Method",
@@ -139,13 +150,13 @@ class EntryTableModel(QAbstractTableModel):
             except Exception:
                 return None
             if 200 <= status < 300:
-                return QColor("#22863a")
+                return QColor("#00c853")
             if 300 <= status < 400:
-                return QColor("#8a63d2")
+                return QColor("#7c4dff")
             if 400 <= status < 500:
-                return QColor("#d97706")
+                return QColor("#ff9100")
             if status >= 500:
-                return QColor("#c62828")
+                return QColor("#ff5252")
 
         return None
 
@@ -201,14 +212,17 @@ class ThemeListener(QObject):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} 3.0.0")
+        self.setWindowTitle(f"{APP_NAME} {APP_VERSION}")
         self.resize(1500, 900)
 
         self.model = EntryTableModel()
         self.current_path: Path | None = None
         self._theme_thread: QThread | None = None
+        self._column_actions: dict[str, QAction] = {}
+        self.settings = QSettings("OpenAI", APP_NAME)
 
         self._build_ui()
+        self._restore_window_state()
         self._apply_theme(self._detect_theme())
         self._start_theme_listener()
 
@@ -226,6 +240,7 @@ class MainWindow(QMainWindow):
 
         splitter = QSplitter(Qt.Vertical)
         layout.addWidget(splitter, 1)
+        self.main_splitter = splitter
 
         self.table = QTableView()
         self.table.setModel(self.model)
@@ -233,8 +248,17 @@ class MainWindow(QMainWindow):
         self.table.setSelectionMode(QTableView.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.setShowGrid(True)
+        self.table.setWordWrap(False)
+        self.table.setCornerButtonEnabled(False)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionsMovable(True)
+        self.table.horizontalHeader().setSectionsClickable(True)
+        self.table.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.horizontalHeader().customContextMenuRequested.connect(self._show_header_menu)
+        self.table.horizontalHeader().sectionMoved.connect(self._save_column_state)
+        self.table.horizontalHeader().sectionResized.connect(self._save_column_state)
         self.table.verticalHeader().setVisible(False)
         self.table.clicked.connect(self._table_row_changed)
         splitter.addWidget(self.table)
@@ -263,10 +287,11 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(root)
         self.setStatusBar(QStatusBar())
+        self._build_column_actions()
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
-        view_menu = self.menuBar().addMenu("&View")
+        self.view_menu = self.menuBar().addMenu("&View")
         help_menu = self.menuBar().addMenu("&Help")
 
         open_action = QAction("&Open…", self)
@@ -289,7 +314,14 @@ class MainWindow(QMainWindow):
         wrap_action = QAction("Word &Wrap", self, checkable=True)
         wrap_action.setChecked(False)
         wrap_action.triggered.connect(self._toggle_wrap)
-        view_menu.addAction(wrap_action)
+        self.view_menu.addAction(wrap_action)
+
+        self.view_menu.addSeparator()
+        self.columns_menu = self.view_menu.addMenu("Columns")
+
+        self.reset_columns_action = QAction("Reset Columns to Default", self)
+        self.reset_columns_action.triggered.connect(self._reset_columns_to_default)
+        self.view_menu.addAction(self.reset_columns_action)
 
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about)
@@ -317,6 +349,16 @@ class MainWindow(QMainWindow):
         self.clear_btn.clicked.connect(self.search_box.clear)
         toolbar.addWidget(self.clear_btn)
 
+    def _build_column_actions(self) -> None:
+        self.columns_menu.clear()
+        self._column_actions.clear()
+        for index, column in enumerate(self.model.columns):
+            action = QAction(column, self, checkable=True)
+            action.setChecked(True)
+            action.triggered.connect(lambda checked, i=index: self._set_column_visible(i, checked))
+            self.columns_menu.addAction(action)
+            self._column_actions[column] = action
+
     def _make_text_tab(self, _name: str) -> QPlainTextEdit:
         edit = QPlainTextEdit()
         edit.setReadOnly(True)
@@ -342,9 +384,9 @@ class MainWindow(QMainWindow):
             self,
             "About Harshark Next",
             (
-                "Harshark Next 3.0.0\n\n"
+                f"Harshark Next {APP_VERSION}\n\n"
                 "A modernized offline HAR viewer inspired by the original Harshark project.\n"
-                "Built with PySide6 and theme-aware behavior for macOS light/dark mode."
+                "Built with PySide6, live macOS light/dark mode handling, and saved column preferences."
             ),
         )
 
@@ -368,17 +410,80 @@ class MainWindow(QMainWindow):
         self._theme_thread.start()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._save_window_state()
         if self._theme_thread is not None:
             self._theme_thread.quit()
             self._theme_thread.wait(1000)
         super().closeEvent(event)
 
-    def _apply_theme(self, theme: str) -> None:
-        dark = theme == "dark"
+    def _build_palette(self, dark: bool) -> QPalette:
+        palette = QPalette()
         if dark:
-            self.setStyleSheet(
+            palette.setColor(QPalette.Window, QColor("#1e1f22"))
+            palette.setColor(QPalette.WindowText, QColor("#e8e8e8"))
+            palette.setColor(QPalette.Base, QColor("#25262b"))
+            palette.setColor(QPalette.AlternateBase, QColor("#20242c"))
+            palette.setColor(QPalette.ToolTipBase, QColor("#25262b"))
+            palette.setColor(QPalette.ToolTipText, QColor("#f2f2f2"))
+            palette.setColor(QPalette.Text, QColor("#e8e8e8"))
+            palette.setColor(QPalette.Button, QColor("#2d2f36"))
+            palette.setColor(QPalette.ButtonText, QColor("#e8e8e8"))
+            palette.setColor(QPalette.BrightText, QColor("#ffffff"))
+            palette.setColor(QPalette.Highlight, QColor("#0a84ff"))
+            palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+            palette.setColor(QPalette.Link, QColor("#4da3ff"))
+            palette.setColor(QPalette.PlaceholderText, QColor("#9aa0aa"))
+        else:
+            palette.setColor(QPalette.Window, QColor("#f5f5f7"))
+            palette.setColor(QPalette.WindowText, QColor("#1f2328"))
+            palette.setColor(QPalette.Base, QColor("#ffffff"))
+            palette.setColor(QPalette.AlternateBase, QColor("#f6f8fa"))
+            palette.setColor(QPalette.ToolTipBase, QColor("#ffffff"))
+            palette.setColor(QPalette.ToolTipText, QColor("#1f2328"))
+            palette.setColor(QPalette.Text, QColor("#1f2328"))
+            palette.setColor(QPalette.Button, QColor("#f6f8fa"))
+            palette.setColor(QPalette.ButtonText, QColor("#1f2328"))
+            palette.setColor(QPalette.BrightText, QColor("#000000"))
+            palette.setColor(QPalette.Highlight, QColor("#0a84ff"))
+            palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+            palette.setColor(QPalette.Link, QColor("#0969da"))
+            palette.setColor(QPalette.PlaceholderText, QColor("#6e7781"))
+        return palette
+
+    def _refresh_widget_tree(self) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        self.style().unpolish(self)
+        self.style().polish(self)
+        for widget in app.allWidgets():
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
+        self.table.viewport().update()
+        self.menuBar().update()
+        self.statusBar().update()
+
+    def _apply_theme(self, theme: str) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+
+        dark = theme == "dark"
+        app.setStyle(QStyleFactory.create("Fusion"))
+        app.setPalette(self._build_palette(dark))
+
+        if dark:
+            app.setStyleSheet(
                 """
-                QMainWindow, QWidget { background: #1e1f22; color: #e8e8e8; }
+                QMainWindow, QWidget {
+                    background: #1e1f22;
+                    color: #e8e8e8;
+                }
+                QMenuBar, QMenu, QToolBar, QStatusBar {
+                    background: #1e1f22;
+                    color: #e8e8e8;
+                }
                 QLineEdit, QPlainTextEdit, QTableView, QTabWidget::pane {
                     background: #25262b;
                     color: #e8e8e8;
@@ -393,7 +498,6 @@ class MainWindow(QMainWindow):
                     border-right: 1px solid #3a3c43;
                     border-bottom: 1px solid #3a3c43;
                 }
-                QMenuBar, QMenu, QToolBar, QStatusBar { background: #1e1f22; color: #e8e8e8; }
                 QPushButton {
                     background: #2d2f36;
                     color: #e8e8e8;
@@ -410,13 +514,18 @@ class MainWindow(QMainWindow):
                     border-top-left-radius: 6px;
                     border-top-right-radius: 6px;
                 }
-                QTabBar::tab:selected { background: #25262b; }
+                QTabBar::tab:selected {
+                    background: #25262b;
+                    color: #ffffff;
+                }
                 """
             )
         else:
-            self.setStyleSheet(
+            app.setStyleSheet(
                 """
                 QLineEdit, QPlainTextEdit, QTableView, QTabWidget::pane {
+                    background: white;
+                    color: #1f2328;
                     border: 1px solid #d0d7de;
                     border-radius: 6px;
                 }
@@ -433,18 +542,108 @@ class MainWindow(QMainWindow):
                     border-radius: 6px;
                     padding: 4px 10px;
                     background: #f6f8fa;
+                    color: #1f2328;
                 }
                 QTabBar::tab {
                     background: #f6f8fa;
+                    color: #1f2328;
                     padding: 8px 12px;
                     border: 1px solid #d0d7de;
                     border-bottom: none;
                     border-top-left-radius: 6px;
                     border-top-right-radius: 6px;
                 }
-                QTabBar::tab:selected { background: white; }
+                QTabBar::tab:selected {
+                    background: white;
+                    color: #1f2328;
+                }
                 """
             )
+
+        self._refresh_widget_tree()
+
+    def _show_header_menu(self, position) -> None:
+        menu = QMenu(self)
+        for column in self.model.columns:
+            action = self._column_actions[column]
+            menu.addAction(action)
+        menu.addSeparator()
+        menu.addAction(self.reset_columns_action)
+        header = self.table.horizontalHeader()
+        menu.exec(header.mapToGlobal(position))
+
+    def _set_column_visible(self, logical_index: int, visible: bool) -> None:
+        currently_visible = sum(not self.table.isColumnHidden(i) for i in range(self.model.columnCount()))
+        if not visible and currently_visible <= 1:
+            action = self._column_actions[self.model.columns[logical_index]]
+            action.blockSignals(True)
+            action.setChecked(True)
+            action.blockSignals(False)
+            return
+        self.table.setColumnHidden(logical_index, not visible)
+        self._save_column_state()
+
+    def _reset_columns_to_default(self) -> None:
+        header = self.table.horizontalHeader()
+        for index, column in enumerate(DEFAULT_COLUMNS):
+            current_logical = self.model.columns.index(column)
+            header.moveSection(header.visualIndex(current_logical), index)
+            self.table.setColumnHidden(current_logical, False)
+            action = self._column_actions[column]
+            action.blockSignals(True)
+            action.setChecked(True)
+            action.blockSignals(False)
+        self.table.resizeColumnsToContents()
+        self._save_column_state()
+
+    def _restore_window_state(self) -> None:
+        self.settings.beginGroup(SETTINGS_GROUP)
+        geometry = self.settings.value("geometry")
+        if geometry is not None:
+            self.restoreGeometry(geometry)
+        splitter_state = self.settings.value("splitter")
+        if splitter_state is not None:
+            self.main_splitter.restoreState(splitter_state)
+        self._restore_column_state()
+        self.settings.endGroup()
+
+    def _save_window_state(self) -> None:
+        self.settings.beginGroup(SETTINGS_GROUP)
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("splitter", self.main_splitter.saveState())
+        self.settings.endGroup()
+        self._save_column_state()
+
+    def _restore_column_state(self) -> None:
+        self.settings.beginGroup(SETTINGS_GROUP)
+        header_state = self.settings.value("header_state")
+        hidden_columns = self.settings.value("hidden_columns", [])
+        self.settings.endGroup()
+
+        if header_state is not None:
+            self.table.horizontalHeader().restoreState(header_state)
+        else:
+            self.table.resizeColumnsToContents()
+
+        if isinstance(hidden_columns, str):
+            hidden_columns = [hidden_columns]
+        hidden_set = set(hidden_columns or [])
+        for index, column in enumerate(self.model.columns):
+            hidden = column in hidden_set
+            self.table.setColumnHidden(index, hidden)
+            action = self._column_actions[column]
+            action.blockSignals(True)
+            action.setChecked(not hidden)
+            action.blockSignals(False)
+
+    def _save_column_state(self, *_args) -> None:
+        hidden_columns = [
+            column for index, column in enumerate(self.model.columns) if self.table.isColumnHidden(index)
+        ]
+        self.settings.beginGroup(SETTINGS_GROUP)
+        self.settings.setValue("header_state", self.table.horizontalHeader().saveState())
+        self.settings.setValue("hidden_columns", hidden_columns)
+        self.settings.endGroup()
 
     def open_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -471,10 +670,9 @@ class MainWindow(QMainWindow):
 
         self.current_path = path
         self.model.set_entries(entries)
-        self.summary_label.setText(
-            f"{path.name} — {len(entries)} entries loaded"
-        )
+        self.summary_label.setText(f"{path.name} — {len(entries)} entries loaded")
         self.statusBar().showMessage(f"Loaded {path}", 5000)
+        self._restore_column_state()
         if entries:
             self.table.selectRow(0)
             self._display_entry(entries[0])
@@ -541,14 +739,6 @@ def _fmt_query_from_url(url: str) -> str:
     return "\n".join(f"{k}: {v}" for k, v in parts)
 
 
-def _fmt_text(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, indent=2, ensure_ascii=False)
-    return str(value)
-
-
 def _extract_body_text(blob: dict[str, Any] | None) -> str:
     if not blob:
         return ""
@@ -564,7 +754,6 @@ def _extract_saml(text: str) -> str:
     if "<saml" not in text.lower() and "samlresponse" not in text.lower() and "samlrequest" not in text.lower():
         return ""
 
-    # First try XML pretty printing directly.
     try:
         parser = etree.XMLParser(remove_blank_text=True, recover=True)
         root = etree.fromstring(text.encode("utf-8"), parser=parser)
@@ -572,7 +761,6 @@ def _extract_saml(text: str) -> str:
     except Exception:
         pass
 
-    # Then try a more forgiving HTML/XML cleanup.
     try:
         soup = BeautifulSoup(text, "xml")
         pretty = soup.prettify()

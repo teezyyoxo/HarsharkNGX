@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "harshark-next"
-version = "3.0.0"
-description = "Modernized offline HAR viewer with macOS light/dark mode support"
+version = "3.1.0"
+description = "Modernized offline HAR viewer with macOS light/dark mode support with saved column preferences"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
