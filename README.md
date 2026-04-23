@@ -13,9 +13,16 @@ A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/hars
 - Column visibility toggling via View menu or header right-click menu
 - Column width presets: Compact, Balanced, Comfortable
 - Splitter-based UI with resizable table and detail panes
+- Lower detail pane now mirrors original Harshark flow:
+  - left side request tabs (Body, Parameters, Cookies, Headers, SAML)
+  - right side response tabs (Body, Parameters, Cookies, Headers)
+- Keyboard navigation now updates selected event details immediately
 - Detailed request/response inspection:
   - headers, parameters, cookies, bodies
   - SAML/XML payload formatting
+- JSON request/response bodies are formatted natively when valid JSON is detected
+- Multipart file payloads (`application/octet-stream`) are redacted from text view for readability and stability
+- Word wrap is enabled by default in detail panes (toggle via `View > Word Wrap`)
 - Faster HAR loading and more robust parsing with improved handling of missing fields
 - Local-first workflow with no network dependency required
 

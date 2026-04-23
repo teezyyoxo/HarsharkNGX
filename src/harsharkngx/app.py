@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import sys
 from dataclasses import dataclass
@@ -42,11 +44,10 @@ except Exception:  # pragma: no cover
     darkdetect = None
 
 SETTINGS_LAYOUT_VERSION = 2
-MAX_DETAIL_TEXT_CHARS = 500_000
-MAX_SAML_PARSE_CHARS = 150_000
+MAX_SAML_PARSE_CHARS = 1_000_000
 
 APP_NAME = "HarsharkNGX"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.1"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -353,6 +354,7 @@ class MainWindow(QMainWindow):
         self._width_preset_actions: dict[str, QAction] = {}
         self._waterfall_delegate = WaterfallDelegate(self)
         self.settings = QSettings("Montel G.", APP_NAME)
+        self._current_entry: HarEntry | None = None
 
         self._build_ui()
         self._restore_window_state()
@@ -440,6 +442,22 @@ class MainWindow(QMainWindow):
         self.response_tabs.addTab(self.response_params, "Parameters")
         self.response_tabs.addTab(self.response_cookies, "Cookies")
         self.response_tabs.addTab(self.response_headers, "Headers")
+        self.request_tabs.currentChanged.connect(self._active_detail_tab_changed)
+        self.response_tabs.currentChanged.connect(self._active_detail_tab_changed)
+
+        self._request_widget_field_map = {
+            self.request_body: "request_body",
+            self.request_query: "request_query",
+            self.request_cookies: "request_cookies",
+            self.request_headers: "request_headers",
+            self.request_saml: "request_saml",
+        }
+        self._response_widget_field_map = {
+            self.response_body: "response_body",
+            self.response_params: "response_params",
+            self.response_cookies: "response_cookies",
+            self.response_headers: "response_headers",
+        }
 
         self.setCentralWidget(root)
         self.setStatusBar(QStatusBar())
@@ -469,10 +487,10 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        wrap_action = QAction("Word &Wrap", self, checkable=True)
-        wrap_action.setChecked(False)
-        wrap_action.triggered.connect(self._toggle_wrap)
-        self.view_menu.addAction(wrap_action)
+        self.wrap_action = QAction("Word &Wrap", self, checkable=True)
+        self.wrap_action.setChecked(True)
+        self.wrap_action.triggered.connect(self._toggle_wrap)
+        self.view_menu.addAction(self.wrap_action)
 
         self.view_menu.addSeparator()
         self.columns_menu = self.view_menu.addMenu("Columns")
@@ -530,7 +548,7 @@ class MainWindow(QMainWindow):
     def _make_text_tab(self, _name: str) -> QPlainTextEdit:
         edit = QPlainTextEdit()
         edit.setReadOnly(True)
-        edit.setWordWrapMode(QTextOption.NoWrap)
+        edit.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         return edit
 
     def _toggle_wrap(self, checked: bool) -> None:
@@ -910,17 +928,30 @@ class MainWindow(QMainWindow):
             self._display_entry(entry)
 
     def _display_entry(self, entry: HarEntry) -> None:
-        self.request_headers.setPlainText(entry.request_headers)
-        self.request_query.setPlainText(entry.request_query)
-        self.request_cookies.setPlainText(entry.request_cookies)
-        self.request_body.setPlainText(entry.request_body)
-        self.request_saml.setPlainText(entry.request_saml)
-        self.response_headers.setPlainText(entry.response_headers)
-        self.response_params.setPlainText(entry.response_params)
-        self.response_cookies.setPlainText(entry.response_cookies)
-        self.response_body.setPlainText(entry.response_body)
+        self._current_entry = entry
+        self._refresh_active_detail_tabs()
+
+    def _active_detail_tab_changed(self, _index: int) -> None:
+        self._refresh_active_detail_tabs()
+
+    def _refresh_active_detail_tabs(self) -> None:
+        if self._current_entry is None:
+            return
+
+        request_widget = self.request_tabs.currentWidget()
+        if isinstance(request_widget, QPlainTextEdit):
+            request_field = self._request_widget_field_map.get(request_widget)
+            if request_field is not None:
+                request_widget.setPlainText(str(getattr(self._current_entry, request_field, "")))
+
+        response_widget = self.response_tabs.currentWidget()
+        if isinstance(response_widget, QPlainTextEdit):
+            response_field = self._response_widget_field_map.get(response_widget)
+            if response_field is not None:
+                response_widget.setPlainText(str(getattr(self._current_entry, response_field, "")))
 
     def _clear_details(self) -> None:
+        self._current_entry = None
         for widget in [
             self.request_headers,
             self.request_query,
@@ -941,8 +972,32 @@ def _fmt_pairs(items: list[dict[str, Any]] | None, key_name: str = "name", value
     lines = []
     for item in items:
         key = str(item.get(key_name, ""))
-        value = item.get(value_name, "")
+        value = _stringify_value(item.get(value_name, ""))
         lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
+def _fmt_har_params(items: list[dict[str, Any]] | None) -> str:
+    if not items:
+        return ""
+    lines: list[str] = []
+    for item in items:
+        name = str(item.get("name", ""))
+        details: list[str] = []
+        value = item.get("value")
+        file_name = item.get("fileName")
+        content_type = item.get("contentType")
+
+        if value not in (None, ""):
+            details.append(f"value={_stringify_value(value)}")
+        if file_name:
+            details.append(f"filename={file_name}")
+        if content_type:
+            details.append(f"content-type={content_type}")
+        if not details:
+            details.append("present")
+
+        lines.append(f"{name}: {', '.join(details)}")
     return "\n".join(lines)
 
 
@@ -951,28 +1006,131 @@ def _fmt_query_from_url(url: str) -> str:
     parts = parse_qsl(parsed.query, keep_blank_values=True)
     if not parts:
         return ""
-    return "\n".join(f"{k}: {v}" for k, v in parts)
+    return "\n".join(f"{k}: {_stringify_value(v)}" for k, v in parts)
 
 
-def _extract_body_text(blob: dict[str, Any] | None) -> str:
+def _stringify_value(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+def _join_sections(sections: list[tuple[str, str]]) -> str:
+    chunks = [f"{title}\n{body}" for title, body in sections if body]
+    return "\n\n".join(chunks)
+
+
+def _maybe_pretty_json(text: str, mime_hint: str) -> str:
+    stripped = text.strip()
+    if not stripped:
+        return text
+    hinted_json = "json" in mime_hint.lower()
+    if not hinted_json and stripped[0] not in "{[":
+        return text
+    try:
+        payload = json.loads(stripped)
+    except Exception:
+        return text
+    try:
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    except Exception:
+        return text
+
+
+def _is_probably_binary(raw: bytes, mime_hint: str) -> bool:
+    mime = mime_hint.lower()
+    if "application/octet-stream" in mime:
+        return True
+    if mime and "json" not in mime and "xml" not in mime and "text/" not in mime and "javascript" not in mime:
+        if any(token in mime for token in ("image/", "audio/", "video/", "font/", "application/pdf", "protobuf")):
+            return True
+
+    sample = raw[:8192]
+    if not sample:
+        return False
+    if b"\x00" in sample:
+        return True
+    controls = sum(b < 32 and b not in (9, 10, 13) for b in sample)
+    return (controls / len(sample)) > 0.20
+
+
+def _decode_bytes_to_text(raw: bytes, mime_hint: str) -> str:
+    if _is_probably_binary(raw, mime_hint):
+        mime = mime_hint or "unknown"
+        return f"[Binary content omitted from text view: {len(raw):,} bytes, mime={mime}]"
+
+    for encoding in ("utf-8", "utf-16"):
+        try:
+            return raw.decode(encoding)
+        except Exception:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def _redact_multipart_binary_parts(text: str, mime_hint: str) -> str:
+    if "multipart/form-data" not in mime_hint.lower():
+        return text
+    if "application/octet-stream" not in text.lower():
+        return text
+
+    newline = "\r\n" if "\r\n" in text else "\n"
+    boundary = ""
+    for line in text.splitlines():
+        if line.startswith("--"):
+            boundary = line.strip()
+            break
+    if not boundary:
+        return text
+
+    header_sep = f"{newline}{newline}"
+    chunks = text.split(boundary)
+    rebuilt: list[str] = []
+    for index, chunk in enumerate(chunks):
+        if index == 0:
+            rebuilt.append(chunk)
+            continue
+        if "application/octet-stream" not in chunk.lower():
+            rebuilt.append(boundary + chunk)
+            continue
+
+        split_at = chunk.find(header_sep)
+        if split_at == -1:
+            rebuilt.append(boundary + chunk)
+            continue
+        headers = chunk[:split_at]
+        trailing = chunk[split_at + len(header_sep) :]
+        replacement = (
+            f"{headers}{header_sep}"
+            "[Binary multipart payload omitted from text view]"
+        )
+        if trailing.endswith("--"):
+            replacement += "--"
+        rebuilt.append(boundary + replacement)
+    return "".join(rebuilt)
+
+
+def _extract_body_text(blob: dict[str, Any] | None, mime_hint: str = "") -> str:
     if not blob:
         return ""
-    text = blob.get("text", "")
-    if text is None:
+    raw_text = blob.get("text", "")
+    if raw_text is None:
         return ""
-    return _trim_for_detail(str(text), "Body")
+    encoding = str(blob.get("encoding", "")).lower()
+    effective_mime = mime_hint or str(blob.get("mimeType", ""))
+    text = str(raw_text)
 
+    if encoding == "base64":
+        try:
+            decoded = base64.b64decode(text, validate=False)
+            text = _decode_bytes_to_text(decoded, effective_mime)
+        except (binascii.Error, ValueError):
+            pass
 
-def _trim_for_detail(text: str, label: str) -> str:
-    if len(text) <= MAX_DETAIL_TEXT_CHARS:
-        return text
-    kept = text[:MAX_DETAIL_TEXT_CHARS]
-    omitted = len(text) - len(kept)
-    return (
-        f"{kept}\n\n"
-        f"[{label} truncated for stability: showing {len(kept):,} of {len(text):,} characters; "
-        f"{omitted:,} omitted.]"
-    )
+    text = _redact_multipart_binary_parts(text, effective_mime)
+    return _maybe_pretty_json(text, effective_mime)
 
 
 def _extract_saml(text: str) -> str:
@@ -1034,12 +1192,22 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
     for item in raw_entries:
         request = item.get("request", {})
         response = item.get("response", {})
+        request_post = request.get("postData", {})
+        response_content = response.get("content", {})
         url = str(request.get("url", ""))
         parsed = urlparse(url)
 
-        body_text = _extract_body_text(request.get("postData"))
-        response_text = _extract_body_text(response.get("content"))
-        response_params = _fmt_pairs(response.get("content", {}).get("params"))
+        query_params = _fmt_pairs(request.get("queryString")) or _fmt_query_from_url(url)
+        body_params = _fmt_har_params(request_post.get("params"))
+        request_params = _join_sections(
+            [("Query Parameters", query_params), ("Body Parameters", body_params)]
+        )
+        if not request_params:
+            request_params = query_params
+
+        body_text = _extract_body_text(request_post, mime_hint=str(request_post.get("mimeType", "")))
+        response_text = _extract_body_text(response_content, mime_hint=str(response_content.get("mimeType", "")))
+        response_params = _fmt_har_params(response_content.get("params"))
         protocol = parsed.scheme.upper() if parsed.scheme else ""
         total_time_text, total_time_value = _normalize_ms(item.get("time", ""))
 
@@ -1050,11 +1218,11 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
             protocol=protocol,
             host=parsed.hostname or "",
             path=parsed.path or "/",
-            mime_type=str(response.get("content", {}).get("mimeType", "")),
+            mime_type=str(response_content.get("mimeType", "")),
             total_time_ms=total_time_text,
             total_time_value=total_time_value,
             request_headers=_fmt_pairs(request.get("headers")),
-            request_query=_fmt_pairs(request.get("queryString")) or _fmt_query_from_url(url),
+            request_query=request_params,
             request_cookies=_fmt_pairs(request.get("cookies")),
             request_body=body_text,
             request_saml=_extract_saml(body_text),

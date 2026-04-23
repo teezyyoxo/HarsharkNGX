@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.4.1]
+
+### Improved
+- Detail text extraction now uses normalized MIME hints consistently across decoding and formatting paths
+- Active-tab-only detail rendering was finalized to reduce memory churn with very large request/response bodies while keeping full data available
+
+### Fixed
+- Follow-up stability refinements for large/binary-heavy HAR events without reintroducing body truncation
+- Version metadata alignment updated for this patch release (`1.4.1`)
+
+## [1.4.0]
+
+### Added
+- Dual request/response detail layout in the lower pane:
+  - left side: request tabs (Body, Parameters, Cookies, Headers, SAML)
+  - right side: response tabs (Body, Parameters, Cookies, Headers)
+- Response parameter tab content from HAR `response.content.params`
+- Native JSON pretty-formatting for request/response bodies when valid JSON is detected
+- Request parameter view now combines query parameters and request body parameters
+
+### Improved
+- Word wrap is now enabled by default for detail panes and can still be toggled from `View > Word Wrap`
+- Multipart request body rendering now redacts `application/octet-stream` file payload sections to keep text view readable
+
+### Fixed
+- Keyboard navigation bug: moving rows with arrow keys now updates the selected event details immediately
+- Stability issue with very large bodies by removing eager truncation and replacing binary-unsafe rendering paths
+- Version metadata is now aligned across app/package fields (`1.4.0`)
+
 ## [1.3.0]
 - Renamed project to HarsharkNGX. (iykyk ✈)
 
