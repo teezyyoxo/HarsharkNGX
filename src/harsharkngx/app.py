@@ -42,6 +42,8 @@ except Exception:  # pragma: no cover
     darkdetect = None
 
 SETTINGS_LAYOUT_VERSION = 2
+MAX_DETAIL_TEXT_CHARS = 500_000
+MAX_SAML_PARSE_CHARS = 150_000
 
 APP_NAME = "HarsharkNGX"
 APP_VERSION = "1.3.0"
@@ -120,6 +122,7 @@ class HarEntry:
     request_body: str
     request_saml: str
     response_headers: str
+    response_params: str
     response_cookies: str
     response_body: str
     full_url: str
@@ -155,6 +158,7 @@ class HarEntry:
             self.request_body,
             self.request_saml,
             self.response_headers,
+            self.response_params,
             self.response_cookies,
             self.response_body,
             self.full_url,
@@ -389,12 +393,32 @@ class MainWindow(QMainWindow):
         self.table.horizontalHeader().sectionMoved.connect(self._save_column_state)
         self.table.horizontalHeader().sectionResized.connect(self._save_column_state)
         self.table.verticalHeader().setVisible(False)
-        self.table.clicked.connect(self._table_row_changed)
+        self.table.selectionModel().currentRowChanged.connect(self._table_row_changed)
         splitter.addWidget(self.table)
 
-        self.tabs = QTabWidget()
-        splitter.addWidget(self.tabs)
+        details_splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(details_splitter)
         splitter.setSizes([480, 380])
+
+        request_panel = QWidget()
+        request_layout = QVBoxLayout(request_panel)
+        request_layout.setContentsMargins(0, 0, 0, 0)
+        request_layout.setSpacing(6)
+        request_layout.addWidget(QLabel("Request"))
+        self.request_tabs = QTabWidget()
+        request_layout.addWidget(self.request_tabs, 1)
+
+        response_panel = QWidget()
+        response_layout = QVBoxLayout(response_panel)
+        response_layout.setContentsMargins(0, 0, 0, 0)
+        response_layout.setSpacing(6)
+        response_layout.addWidget(QLabel("Response"))
+        self.response_tabs = QTabWidget()
+        response_layout.addWidget(self.response_tabs, 1)
+
+        details_splitter.addWidget(request_panel)
+        details_splitter.addWidget(response_panel)
+        details_splitter.setSizes([1, 1])
 
         self.request_headers = self._make_text_tab("Request Headers")
         self.request_query = self._make_text_tab("Request Parameters")
@@ -402,17 +426,20 @@ class MainWindow(QMainWindow):
         self.request_body = self._make_text_tab("Request Body")
         self.request_saml = self._make_text_tab("Request SAML")
         self.response_headers = self._make_text_tab("Response Headers")
+        self.response_params = self._make_text_tab("Response Parameters")
         self.response_cookies = self._make_text_tab("Response Cookies")
         self.response_body = self._make_text_tab("Response Body")
 
-        self.tabs.addTab(self.request_headers, "Req Headers")
-        self.tabs.addTab(self.request_query, "Req Params")
-        self.tabs.addTab(self.request_cookies, "Req Cookies")
-        self.tabs.addTab(self.request_body, "Req Body")
-        self.tabs.addTab(self.request_saml, "Req SAML")
-        self.tabs.addTab(self.response_headers, "Resp Headers")
-        self.tabs.addTab(self.response_cookies, "Resp Cookies")
-        self.tabs.addTab(self.response_body, "Resp Body")
+        self.request_tabs.addTab(self.request_body, "Body")
+        self.request_tabs.addTab(self.request_query, "Parameters")
+        self.request_tabs.addTab(self.request_cookies, "Cookies")
+        self.request_tabs.addTab(self.request_headers, "Headers")
+        self.request_tabs.addTab(self.request_saml, "SAML")
+
+        self.response_tabs.addTab(self.response_body, "Body")
+        self.response_tabs.addTab(self.response_params, "Parameters")
+        self.response_tabs.addTab(self.response_cookies, "Cookies")
+        self.response_tabs.addTab(self.response_headers, "Headers")
 
         self.setCentralWidget(root)
         self.setStatusBar(QStatusBar())
@@ -515,6 +542,7 @@ class MainWindow(QMainWindow):
             self.request_body,
             self.request_saml,
             self.response_headers,
+            self.response_params,
             self.response_cookies,
             self.response_body,
         ]:
@@ -876,9 +904,8 @@ class MainWindow(QMainWindow):
             self._clear_details()
         self.table.viewport().update()
 
-    def _table_row_changed(self) -> None:
-        index = self.table.currentIndex()
-        entry = self.model.entry_at(index.row())
+    def _table_row_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        entry = self.model.entry_at(current.row())
         if entry is not None:
             self._display_entry(entry)
 
@@ -889,6 +916,7 @@ class MainWindow(QMainWindow):
         self.request_body.setPlainText(entry.request_body)
         self.request_saml.setPlainText(entry.request_saml)
         self.response_headers.setPlainText(entry.response_headers)
+        self.response_params.setPlainText(entry.response_params)
         self.response_cookies.setPlainText(entry.response_cookies)
         self.response_body.setPlainText(entry.response_body)
 
@@ -900,6 +928,7 @@ class MainWindow(QMainWindow):
             self.request_body,
             self.request_saml,
             self.response_headers,
+            self.response_params,
             self.response_cookies,
             self.response_body,
         ]:
@@ -931,12 +960,29 @@ def _extract_body_text(blob: dict[str, Any] | None) -> str:
     text = blob.get("text", "")
     if text is None:
         return ""
-    return str(text)
+    return _trim_for_detail(str(text), "Body")
+
+
+def _trim_for_detail(text: str, label: str) -> str:
+    if len(text) <= MAX_DETAIL_TEXT_CHARS:
+        return text
+    kept = text[:MAX_DETAIL_TEXT_CHARS]
+    omitted = len(text) - len(kept)
+    return (
+        f"{kept}\n\n"
+        f"[{label} truncated for stability: showing {len(kept):,} of {len(text):,} characters; "
+        f"{omitted:,} omitted.]"
+    )
 
 
 def _extract_saml(text: str) -> str:
     if not text:
         return ""
+    if len(text) > MAX_SAML_PARSE_CHARS:
+        return (
+            f"SAML parsing skipped for stability ({len(text):,} characters; "
+            f"limit is {MAX_SAML_PARSE_CHARS:,})."
+        )
     if "<saml" not in text.lower() and "samlresponse" not in text.lower() and "samlrequest" not in text.lower():
         return ""
 
@@ -993,6 +1039,7 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
 
         body_text = _extract_body_text(request.get("postData"))
         response_text = _extract_body_text(response.get("content"))
+        response_params = _fmt_pairs(response.get("content", {}).get("params"))
         protocol = parsed.scheme.upper() if parsed.scheme else ""
         total_time_text, total_time_value = _normalize_ms(item.get("time", ""))
 
@@ -1012,6 +1059,7 @@ def parse_har(payload: dict[str, Any]) -> list[HarEntry]:
             request_body=body_text,
             request_saml=_extract_saml(body_text),
             response_headers=_fmt_pairs(response.get("headers")),
+            response_params=response_params,
             response_cookies=_fmt_pairs(response.get("cookies")),
             response_body=response_text,
             full_url=url,
