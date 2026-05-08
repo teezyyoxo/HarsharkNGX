@@ -47,7 +47,7 @@ SETTINGS_LAYOUT_VERSION = 2
 MAX_SAML_PARSE_CHARS = 1_000_000
 
 APP_NAME = "HarsharkNGX"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -386,8 +386,11 @@ class MainWindow(QMainWindow):
         self._waterfall_delegate = WaterfallDelegate(self)
         self.settings = QSettings("Montel G.", APP_NAME)
         self._current_entry: HarEntry | None = None
+        self._mcp_server = None
+        self._mcp_service = None
 
         self._build_ui()
+        self._start_mcp_service()
         self._restore_window_state()
         self._apply_theme(self._detect_theme())
         self._start_theme_listener()
@@ -636,10 +639,30 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._save_window_state()
+        self._stop_mcp_service()
         if self._theme_thread is not None:
             self._theme_thread.quit()
             self._theme_thread.wait(1000)
         super().closeEvent(event)
+
+    def _start_mcp_service(self) -> None:
+        try:
+            from .mcp_server import DEFAULT_HOST, DEFAULT_PORT, HarMcpServer, McpTcpService
+
+            self._mcp_server = HarMcpServer()
+            self._mcp_service = McpTcpService(self._mcp_server, DEFAULT_HOST, DEFAULT_PORT)
+            port = self._mcp_service.start()
+            self.statusBar().showMessage(f"MCP service listening on {DEFAULT_HOST}:{port}", 5000)
+        except Exception as exc:
+            self._mcp_server = None
+            self._mcp_service = None
+            self.statusBar().showMessage(f"MCP service unavailable: {type(exc).__name__}: {exc}", 8000)
+
+    def _stop_mcp_service(self) -> None:
+        if self._mcp_service is not None:
+            self._mcp_service.stop()
+            self._mcp_service = None
+        self._mcp_server = None
 
     def _build_palette(self, dark: bool) -> QPalette:
         palette = QPalette()
@@ -1019,6 +1042,8 @@ class MainWindow(QMainWindow):
 
         self.current_path = path
         self.model.set_entries(entries)
+        if self._mcp_server is not None:
+            self._mcp_server.set_loaded_har(path, entries)
         self.summary_label.setText(f"{path.name} — {len(entries)} entries loaded")
         self.statusBar().showMessage(f"Loaded {path}", 5000)
         self._restore_column_state()

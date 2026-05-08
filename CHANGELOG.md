@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.6.0]
+
+### Added
+- App-managed local MCP service that starts with HarsharkNGX and stops when the app closes
+- `harsharkngx-mcp` console script with a stdio bridge mode for Claude Desktop
+- MCP tools for loading HAR files, summarizing loaded data, listing entries, searching entries, and fetching request/response details
+- MCP resources for the loaded HAR summary and entry list
+- README setup instructions and Claude Desktop `mcpServers` configuration example
+
+### Changed
+- Version metadata aligned for the MCP server release (`1.6.0`)
+
 ## [1.5.0]
 
 ### Added
