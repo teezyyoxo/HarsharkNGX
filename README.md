@@ -66,6 +66,10 @@ source ~/.zshrc
 
 Now you can launch the app from anywhere by running `harshark`.
 
+## Roadmap
+
+- Explore adding an MCP server mode so other programs can query HAR data from HarsharkNGX, such as listing loaded requests, fetching request/response details, searching entries, and exposing selected HAR metadata as MCP resources or tools.
+
 ## Notes
 
 This is a best-effort modernization rather than a byte-for-byte fork. It keeps the spirit of the original app, but the codebase has been refreshed around a simpler Qt6 architecture.

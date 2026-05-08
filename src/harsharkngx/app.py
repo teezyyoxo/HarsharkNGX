@@ -47,7 +47,7 @@ SETTINGS_LAYOUT_VERSION = 2
 MAX_SAML_PARSE_CHARS = 1_000_000
 
 APP_NAME = "HarsharkNGX"
-APP_VERSION = "1.4.1"
+APP_VERSION = "1.5.0"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -103,6 +103,37 @@ STATUS_COLOR_MAP = {
     "4xx": QColor("#ef6c00"),
     "5xx": QColor("#c62828"),
     "other": QColor("#546e7a"),
+}
+COPY_FIELD_SPECS = [
+    ("Full Path", "full_url"),
+    ("Host", "host"),
+    ("Path", "path"),
+    ("Method", "method"),
+    ("Status", "status"),
+    ("Protocol", "protocol"),
+    ("Started", "started"),
+    ("Mime Type", "mime_type"),
+    ("Time (ms)", "total_time_ms"),
+    ("Request Headers", "request_headers"),
+    ("Request Parameters", "request_query"),
+    ("Request Cookies", "request_cookies"),
+    ("Request Body", "request_body"),
+    ("Request SAML", "request_saml"),
+    ("Response Headers", "response_headers"),
+    ("Response Parameters", "response_params"),
+    ("Response Cookies", "response_cookies"),
+    ("Response Body", "response_body"),
+]
+COLUMN_COPY_FIELD_MAP = {
+    "Started": ("Started", "started"),
+    "Method": ("Method", "method"),
+    "Status": ("Status", "status"),
+    "Protocol": ("Protocol", "protocol"),
+    "Host": ("Host", "host"),
+    "Path": ("Path", "path"),
+    "Mime Type": ("Mime Type", "mime_type"),
+    "Waterfall": ("Time (ms)", "total_time_ms"),
+    "Time (ms)": ("Time (ms)", "total_time_ms"),
 }
 
 
@@ -395,6 +426,8 @@ class MainWindow(QMainWindow):
         self.table.horizontalHeader().sectionMoved.connect(self._save_column_state)
         self.table.horizontalHeader().sectionResized.connect(self._save_column_state)
         self.table.verticalHeader().setVisible(False)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_entry_copy_menu)
         self.table.selectionModel().currentRowChanged.connect(self._table_row_changed)
         splitter.addWidget(self.table)
 
@@ -549,6 +582,10 @@ class MainWindow(QMainWindow):
         edit = QPlainTextEdit()
         edit.setReadOnly(True)
         edit.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        edit.setContextMenuPolicy(Qt.CustomContextMenu)
+        edit.customContextMenuRequested.connect(
+            lambda position, widget=edit: self._show_detail_copy_menu(widget, position)
+        )
         return edit
 
     def _toggle_wrap(self, checked: bool) -> None:
@@ -767,6 +804,88 @@ class MainWindow(QMainWindow):
         menu.addAction(self.reset_columns_action)
         header = self.table.horizontalHeader()
         menu.exec(header.mapToGlobal(position))
+
+    def _show_entry_copy_menu(self, position) -> None:
+        index = self.table.indexAt(position)
+        if index.isValid():
+            self.table.setCurrentIndex(index)
+            self.table.selectRow(index.row())
+            entry = self.model.entry_at(index.row())
+            selected_column = self.model.columns[index.column()]
+            selected_field = COLUMN_COPY_FIELD_MAP.get(selected_column)
+        else:
+            entry = self._current_entry
+            selected_field = None
+
+        if entry is None:
+            return
+
+        menu = self._build_copy_menu(entry, selected_field)
+        menu.exec(self.table.viewport().mapToGlobal(position))
+
+    def _show_detail_copy_menu(self, widget: QPlainTextEdit, position) -> None:
+        if self._current_entry is None:
+            return
+
+        selected_field = self._request_widget_field_map.get(widget) or self._response_widget_field_map.get(widget)
+        selected_spec = None
+        if selected_field is not None:
+            selected_spec = next((spec for spec in COPY_FIELD_SPECS if spec[1] == selected_field), None)
+
+        selected_text = widget.textCursor().selectedText().replace("\u2029", "\n")
+        extra_action = ("Selected Text", selected_text) if selected_text else None
+        menu = self._build_copy_menu(self._current_entry, selected_spec, extra_action)
+        menu.exec(widget.mapToGlobal(position))
+
+    def _build_copy_menu(
+        self,
+        entry: HarEntry,
+        selected_field: tuple[str, str] | None = None,
+        extra_after_first: tuple[str, str] | None = None,
+    ) -> QMenu:
+        menu = QMenu(self)
+        specs = COPY_FIELD_SPECS[:]
+        if selected_field is not None:
+            specs = [selected_field] + [spec for spec in specs if spec[1] != selected_field[1]]
+
+        for index, (label, attr_name) in enumerate(specs):
+            value = self._copy_value(entry, attr_name)
+            action = QAction(f"Copy {label}", self)
+            action.setEnabled(bool(value))
+            action.triggered.connect(
+                lambda _checked=False, text=value, field_label=label: self._copy_to_clipboard(text, field_label)
+            )
+            menu.addAction(action)
+            if index == 0 and selected_field is not None:
+                if extra_after_first is not None:
+                    extra_label, extra_text = extra_after_first
+                    extra_action = QAction(f"Copy {extra_label}", self)
+                    extra_action.triggered.connect(
+                        lambda _checked=False, text=extra_text, field_label=extra_label: self._copy_to_clipboard(
+                            text,
+                            field_label,
+                        )
+                    )
+                    menu.addAction(extra_action)
+                menu.addSeparator()
+
+        menu.addSeparator()
+        raw_action = QAction("Copy Raw Entry JSON", self)
+        raw_text = json.dumps(entry.raw, indent=2, ensure_ascii=False)
+        raw_action.triggered.connect(
+            lambda _checked=False, text=raw_text: self._copy_to_clipboard(text, "Raw Entry JSON")
+        )
+        menu.addAction(raw_action)
+        return menu
+
+    def _copy_value(self, entry: HarEntry, attr_name: str) -> str:
+        value = getattr(entry, attr_name, "")
+        return str(value) if value is not None else ""
+
+    def _copy_to_clipboard(self, text: str, label: str) -> None:
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+        self.statusBar().showMessage(f"Copied {label}", 2500)
 
     def _set_column_visible(self, logical_index: int, visible: bool) -> None:
         currently_visible = sum(not self.table.isColumnHidden(i) for i in range(self.model.columnCount()))

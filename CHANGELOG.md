@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.5.0]
+
+### Added
+- Right-click copy menu for HAR table entries, with the clicked field shown first
+- Copy actions for common entry fields including full URL, host, path, method, status, protocol, MIME type, timing, request/response headers, parameters, cookies, bodies, SAML, and raw entry JSON
+- Right-click copy menu for request/response detail panes, including selected text when highlighted
+- README roadmap item for a potential MCP server mode to expose HAR data to other programs
+
+### Developer / Packaging
+- Expanded `.gitignore` for Python bytecode, `__pycache__`, build artifacts, egg-info, local caches, virtual environments, and `.DS_Store`
+- Removed previously tracked Python bytecode cache files from git tracking
+- Version metadata aligned for this minor release (`1.5.0`)
+
 ## [1.4.1]
 
 ### Improved

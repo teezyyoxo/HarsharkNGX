@@ -1,2 +1,15 @@
-.venv
-/src/harsharkngx.egg-info
+.venv/
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+build/
+dist/
+*.egg-info/
+
+.DS_Store
