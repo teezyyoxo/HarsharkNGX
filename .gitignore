@@ -12,4 +12,12 @@ build/
 dist/
 *.egg-info/
 
+# Local standalone-app packaging output
+*.app/
+*.dmg
+*.pkg
+*.spec.bak
+packaging/pyinstaller/AppIcon.icns
+packaging/pyinstaller/AppIcon.iconset/
+
 .DS_Store

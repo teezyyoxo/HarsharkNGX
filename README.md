@@ -48,9 +48,37 @@ source .venv/bin/activate
 python -m harsharkngx
 ```
 
+## Build a Standalone App Bundle
+
+HarsharkNGX can be compiled into a local desktop app with PyInstaller. On macOS this produces `dist/HarsharkNGX.app`; on other platforms PyInstaller produces the native runnable output under `dist/`.
+
+The source app icon is tracked at `packaging/assets/AppIcon.png`. On macOS, the build script converts that PNG into the generated `.icns` file used by the bundle. Generated icon files are ignored by git.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e ".[packaging]"
+python scripts/build_app.py
+```
+
+On macOS, launch the compiled app with:
+
+```bash
+open dist/HarsharkNGX.app
+```
+
+The generated bundle is intentionally not tracked by git. Build output such as `build/`, `dist/`, `.app`, `.dmg`, and `.pkg` artifacts is ignored locally.
+
+### macOS Gatekeeper Note
+
+Locally built app bundles are not code-signed or notarized. If macOS blocks the first launch, right-click `HarsharkNGX.app`, choose `Open`, and confirm the prompt. For redistribution outside your own machine, sign and notarize the bundle with your Apple Developer credentials.
+
 ## MCP Server
 
 HarsharkNGX starts a local MCP service automatically when the desktop app opens, and stops it when the app closes. Claude Desktop connects through a stdio bridge process, so Claude can inspect the HAR file currently loaded in HarsharkNGX.
+
+The bottom-right status bar control shows `MCP Server: active` when the in-app MCP service starts successfully, or `MCP Server: inactive` if it cannot start. The server is on by default; click the status control to stop or restart it.
 
 Run the app as usual:
 
@@ -90,6 +118,8 @@ Add this to your `claude_desktop_config.json`:
 ```
 
 Open HarsharkNGX before using the MCP tools in Claude. If HarsharkNGX is closed, the bridge has nothing to connect to.
+
+The standalone app bundle still starts the same local MCP service. The `harsharkngx-mcp` stdio bridge is currently provided by the Python package install, so keep a source/venv install available if you use Claude Desktop integration.
 
 ## Pro Tip: Create a One-Command Launcher
 

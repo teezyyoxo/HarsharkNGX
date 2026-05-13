@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.6.4]
+
+### Changed
+- App icon source is now tracked at `packaging/assets/AppIcon.png` so fresh clones can build the same branded app bundle
+- Standalone app builds generate the macOS `.icns` from the tracked icon asset
+
+### Developer / Packaging
+- Generated `.icns` and iconset files remain ignored while the source PNG is committed
+- Version metadata aligned for the tracked app icon asset release (`1.6.4`)
+
+## [1.6.3]
+
+### Added
+- Clickable MCP status-bar control that toggles the in-app MCP server on and off
+- macOS app icon generation from a local `AppIcon.png` source during standalone app builds
+
+### Developer / Packaging
+- Ignored the local icon source and generated `.icns`/iconset artifacts
+- Version metadata aligned for the MCP toggle and app icon release (`1.6.3`)
+
+## [1.6.2]
+
+### Added
+- Persistent bottom status-bar indicator showing whether the in-app MCP server is active or inactive
+
+### Fixed
+- Standalone app bundle startup now uses an absolute package import so the PyInstaller app launches correctly
+
+## [1.6.1]
+
+### Added
+- PyInstaller app-bundle build support for compiling HarsharkNGX as a standalone desktop app
+- `scripts/build_app.py` wrapper for building from the tracked PyInstaller spec
+- Optional `packaging` dependency extra for installing PyInstaller only when app bundle builds are needed
+- README instructions for building and launching the local standalone bundle
+
+### Developer / Packaging
+- Ignored local app packaging artifacts such as `.app`, `.dmg`, `.pkg`, and PyInstaller backup spec files
+- Version metadata aligned for the standalone-app packaging release (`1.6.1`)
+
 ## [1.6.0]
 
 ### Added

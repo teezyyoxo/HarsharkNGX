@@ -47,7 +47,7 @@ SETTINGS_LAYOUT_VERSION = 2
 MAX_SAML_PARSE_CHARS = 1_000_000
 
 APP_NAME = "HarsharkNGX"
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.6.4"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -497,6 +497,13 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(root)
         self.setStatusBar(QStatusBar())
+        self.mcp_status_button = QPushButton("MCP Server: inactive")
+        self.mcp_status_button.setMinimumWidth(160)
+        self.mcp_status_button.setCursor(Qt.PointingHandCursor)
+        self.mcp_status_button.setToolTip("Click to start or stop the MCP server")
+        self.mcp_status_button.clicked.connect(self._toggle_mcp_service)
+        self.statusBar().addPermanentWidget(self.mcp_status_button)
+        self._set_mcp_status(False)
         self._build_column_actions()
         self._build_width_preset_actions()
         self._apply_special_column_behavior()
@@ -646,16 +653,21 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _start_mcp_service(self) -> None:
+        if self._mcp_service is not None:
+            self._set_mcp_status(True)
+            return
         try:
             from .mcp_server import DEFAULT_HOST, DEFAULT_PORT, HarMcpServer, McpTcpService
 
             self._mcp_server = HarMcpServer()
             self._mcp_service = McpTcpService(self._mcp_server, DEFAULT_HOST, DEFAULT_PORT)
             port = self._mcp_service.start()
+            self._set_mcp_status(True)
             self.statusBar().showMessage(f"MCP service listening on {DEFAULT_HOST}:{port}", 5000)
         except Exception as exc:
             self._mcp_server = None
             self._mcp_service = None
+            self._set_mcp_status(False)
             self.statusBar().showMessage(f"MCP service unavailable: {type(exc).__name__}: {exc}", 8000)
 
     def _stop_mcp_service(self) -> None:
@@ -663,6 +675,34 @@ class MainWindow(QMainWindow):
             self._mcp_service.stop()
             self._mcp_service = None
         self._mcp_server = None
+        self._set_mcp_status(False)
+
+    def _toggle_mcp_service(self) -> None:
+        if self._mcp_service is None:
+            self._start_mcp_service()
+        else:
+            self._stop_mcp_service()
+            self.statusBar().showMessage("MCP service stopped", 5000)
+
+    def _set_mcp_status(self, active: bool) -> None:
+        if not hasattr(self, "mcp_status_button"):
+            return
+        if active:
+            self.mcp_status_button.setText("MCP Server: active")
+            self.mcp_status_button.setStyleSheet(
+                "QPushButton { color: #1b5e20; background: #dff6dd; border: 1px solid #2e7d32; "
+                "border-radius: 6px; padding: 3px 8px; font-weight: 600; }"
+                "QPushButton:hover { background: #c9efc8; }"
+            )
+            self.mcp_status_button.setToolTip("MCP server is active. Click to stop it.")
+        else:
+            self.mcp_status_button.setText("MCP Server: inactive")
+            self.mcp_status_button.setStyleSheet(
+                "QPushButton { color: #7f1d1d; background: #fde2e2; border: 1px solid #c62828; "
+                "border-radius: 6px; padding: 3px 8px; font-weight: 600; }"
+                "QPushButton:hover { background: #f9cccc; }"
+            )
+            self.mcp_status_button.setToolTip("MCP server is inactive. Click to start it.")
 
     def _build_palette(self, dark: bool) -> QPalette:
         palette = QPalette()
