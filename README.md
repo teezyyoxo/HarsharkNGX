@@ -52,7 +52,7 @@ python -m harsharkngx
 
 HarsharkNGX can be compiled into a local desktop app with PyInstaller. On macOS this produces `dist/HarsharkNGX.app`; on other platforms PyInstaller produces the native runnable output under `dist/`.
 
-The source app icon is tracked at `packaging/assets/AppIcon.png`. On macOS, the build script converts that PNG into the generated `.icns` file used by the bundle. Generated icon files are ignored by git.
+The source app icon is tracked at `packaging/assets/AppIcon_Transparent.png`. On macOS, the build script converts that PNG into the generated `.icns` file used by the bundle. Generated icon files are ignored by git.
 
 ```bash
 python3 -m venv .venv

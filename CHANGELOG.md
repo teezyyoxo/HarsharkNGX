@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.6.5]
+
+### Changed
+- Updated the standalone app icon source to `packaging/assets/AppIcon_Transparent.png`
+- Standalone app builds now generate the macOS `.icns` from the transparent RGBA icon
+
+### Developer / Packaging
+- Version metadata aligned for the transparent app icon release (`1.6.5`)
+
 ## [1.6.4]
 
 ### Changed

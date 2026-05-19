@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "packaging" / "pyinstaller" / "harsharkngx.spec"
-SOURCE_ICON = ROOT / "packaging" / "assets" / "AppIcon.png"
+SOURCE_ICON = ROOT / "packaging" / "assets" / "AppIcon_Transparent.png"
 ICONSET = ROOT / "packaging" / "pyinstaller" / "AppIcon.iconset"
 ICNS = ROOT / "packaging" / "pyinstaller" / "AppIcon.icns"
 

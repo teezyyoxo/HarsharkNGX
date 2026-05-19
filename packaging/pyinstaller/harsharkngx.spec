@@ -62,8 +62,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "HarsharkNGX",
         "CFBundleName": "HarsharkNGX",
-        "CFBundleShortVersionString": "1.6.4",
-        "CFBundleVersion": "1.6.4",
+        "CFBundleShortVersionString": "1.6.5",
+        "CFBundleVersion": "1.6.5",
         "NSHighResolutionCapable": True,
     },
 )
