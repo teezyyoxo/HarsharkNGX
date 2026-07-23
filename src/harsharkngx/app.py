@@ -12,8 +12,33 @@ from urllib.parse import parse_qsl, urlparse
 
 from bs4 import BeautifulSoup
 from lxml import etree
-from PySide6.QtCore import QByteArray, QAbstractTableModel, QModelIndex, QObject, QRectF, QSettings, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QGuiApplication, QKeySequence, QPainter, QPalette, QTextOption
+from PySide6.QtCore import (
+    QByteArray,
+    QAbstractTableModel,
+    QModelIndex,
+    QObject,
+    QRectF,
+    QRegularExpression,
+    QSettings,
+    Qt,
+    QThread,
+    QTimer,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QFont,
+    QGuiApplication,
+    QKeySequence,
+    QPainter,
+    QPalette,
+    QSyntaxHighlighter,
+    QTextCharFormat,
+    QTextCursor,
+    QTextOption,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -45,9 +70,15 @@ except Exception:  # pragma: no cover
 
 SETTINGS_LAYOUT_VERSION = 2
 MAX_SAML_PARSE_CHARS = 1_000_000
+DETAIL_INCREMENTAL_RENDER_CHARS = 256_000
+DETAIL_RENDER_CHUNK_CHARS = 48_000
+DETAIL_HIGHLIGHT_MAX_CHARS = 2_000_000
+DETAIL_NOWRAP_CHARS = 1_000_000
+SEARCH_DEBOUNCE_MS = 220
+SEARCH_CHUNK_CHARS = 512_000
 
 APP_NAME = "HarsharkNGX"
-APP_VERSION = "1.6.5"
+APP_VERSION = "1.7.0"
 SETTINGS_GROUP = "MainWindow"
 DEFAULT_COLUMNS = [
     "Started",
@@ -61,6 +92,49 @@ DEFAULT_COLUMNS = [
     "Time (ms)",
 ]
 DEFAULT_WIDTH_PRESET = "Balanced"
+DEFAULT_SYNTAX_COLOR_THEME = "Default"
+SYNTAX_COLOR_THEMES: dict[str, dict[str, dict[str, dict[str, str]]]] = {
+    "Default": {
+        "light": {
+            "json": {"key": "#0550ae", "string": "#0a7f3f", "number": "#953800", "literal": "#8250df"},
+            "headers": {"name": "#0550ae", "url": "#0a7f3f", "mime": "#953800", "status": "#cf222e", "directive": "#8250df"},
+        },
+        "dark": {
+            "json": {"key": "#79c0ff", "string": "#a5d6a7", "number": "#ffcc80", "literal": "#f48fb1"},
+            "headers": {"name": "#79c0ff", "url": "#a5d6a7", "mime": "#ffcc80", "status": "#f48fb1", "directive": "#c4b5fd"},
+        },
+    },
+    "Nord": {
+        "light": {
+            "json": {"key": "#2e5d74", "string": "#3d7a5e", "number": "#a35d2d", "literal": "#7c4d8e"},
+            "headers": {"name": "#2e5d74", "url": "#3d7a5e", "mime": "#a35d2d", "status": "#b14c57", "directive": "#7c4d8e"},
+        },
+        "dark": {
+            "json": {"key": "#88c0d0", "string": "#a3be8c", "number": "#ebcb8b", "literal": "#b48ead"},
+            "headers": {"name": "#88c0d0", "url": "#a3be8c", "mime": "#ebcb8b", "status": "#bf616a", "directive": "#b48ead"},
+        },
+    },
+    "Solarized": {
+        "light": {
+            "json": {"key": "#268bd2", "string": "#2aa198", "number": "#b58900", "literal": "#d33682"},
+            "headers": {"name": "#268bd2", "url": "#2aa198", "mime": "#b58900", "status": "#dc322f", "directive": "#d33682"},
+        },
+        "dark": {
+            "json": {"key": "#268bd2", "string": "#2aa198", "number": "#b58900", "literal": "#d33682"},
+            "headers": {"name": "#268bd2", "url": "#2aa198", "mime": "#b58900", "status": "#dc322f", "directive": "#d33682"},
+        },
+    },
+    "Monokai": {
+        "light": {
+            "json": {"key": "#0077aa", "string": "#5f7800", "number": "#8b4dcc", "literal": "#c92762"},
+            "headers": {"name": "#0077aa", "url": "#5f7800", "mime": "#8b4dcc", "status": "#c92762", "directive": "#8b4dcc"},
+        },
+        "dark": {
+            "json": {"key": "#66d9ef", "string": "#e6db74", "number": "#ae81ff", "literal": "#f92672"},
+            "headers": {"name": "#66d9ef", "url": "#e6db74", "mime": "#ae81ff", "status": "#f92672", "directive": "#ae81ff"},
+        },
+    },
+}
 COLUMN_WIDTH_PRESETS: dict[str, dict[str, int]] = {
     "Compact": {
         "Started": 170,
@@ -197,6 +271,45 @@ class HarEntry:
         ]
         return "\n".join(part for part in parts if part)
 
+    def matches_query(self, needle: str) -> bool:
+        """Search fields individually so a query does not build another giant payload string."""
+        for value in (
+            self.started,
+            self.method,
+            self.status,
+            self.protocol,
+            self.host,
+            self.path,
+            self.mime_type,
+            self.total_time_ms,
+            self.full_url,
+            self.request_headers,
+            self.request_query,
+            self.request_cookies,
+            self.request_body,
+            self.request_saml,
+            self.response_headers,
+            self.response_params,
+            self.response_cookies,
+            self.response_body,
+        ):
+            if _contains_casefold(value, needle):
+                return True
+        return False
+
+
+def _contains_casefold(text: str, needle: str) -> bool:
+    """Search oversized text in slices so a single casefold does not monopolize the interpreter."""
+    if len(text) <= SEARCH_CHUNK_CHARS:
+        return needle in text.casefold()
+
+    overlap = max(len(needle) - 1, 0)
+    for start in range(0, len(text), SEARCH_CHUNK_CHARS):
+        end = min(start + SEARCH_CHUNK_CHARS + overlap, len(text))
+        if needle in text[start:end].casefold():
+            return True
+    return False
+
 
 def status_bucket(status_text: str) -> str:
     try:
@@ -280,6 +393,7 @@ class EntryTableModel(QAbstractTableModel):
         self.entries: list[HarEntry] = []
         self.filtered_entries: list[HarEntry] = []
         self.query = ""
+        self._max_time_value = 1.0
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         if parent.isValid():
@@ -335,18 +449,14 @@ class EntryTableModel(QAbstractTableModel):
         self.entries = entries
         self.filtered_entries = entries[:]
         self.query = ""
+        self._max_time_value = max((entry.total_time_value for entry in entries), default=1.0) or 1.0
         self.endResetModel()
 
-    def apply_filter(self, query: str) -> None:
+    def set_filtered_entries(self, entries: list[HarEntry], query: str) -> None:
         self.beginResetModel()
-        self.query = query.strip()
-        if not self.query:
-            self.filtered_entries = self.entries[:]
-        else:
-            needle = self.query.casefold()
-            self.filtered_entries = [
-                entry for entry in self.entries if needle in entry.haystack().casefold()
-            ]
+        self.query = query
+        self.filtered_entries = entries
+        self._max_time_value = max((entry.total_time_value for entry in entries), default=1.0) or 1.0
         self.endResetModel()
 
     def entry_at(self, row: int) -> HarEntry | None:
@@ -355,9 +465,210 @@ class EntryTableModel(QAbstractTableModel):
         return self.filtered_entries[row]
 
     def max_time_ms(self) -> float:
-        if not self.filtered_entries:
-            return 1.0
-        return max(entry.total_time_value for entry in self.filtered_entries) or 1.0
+        return self._max_time_value
+
+
+def _syntax_colors(theme_name: str, dark: bool, syntax_kind: str) -> dict[str, str]:
+    theme = SYNTAX_COLOR_THEMES.get(theme_name, SYNTAX_COLOR_THEMES[DEFAULT_SYNTAX_COLOR_THEME])
+    return theme["dark" if dark else "light"][syntax_kind]
+
+
+def _syntax_format(color: str, bold: bool = False) -> QTextCharFormat:
+    text_format = QTextCharFormat()
+    text_format.setForeground(QColor(color))
+    if bold:
+        text_format.setFontWeight(QFont.Bold)
+    return text_format
+
+
+class JsonSyntaxHighlighter(QSyntaxHighlighter):
+    """Small native JSON highlighter with no web view or editor extension dependency."""
+
+    def __init__(self, document) -> None:
+        super().__init__(document)
+        self._key_pattern = QRegularExpression(r'"(?:\\.|[^"\\])*"(?=\s*:)')
+        self._string_pattern = QRegularExpression(r'"(?:\\.|[^"\\])*"')
+        self._number_pattern = QRegularExpression(r'(?<![\w."])-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?')
+        self._literal_pattern = QRegularExpression(r'\b(?:true|false|null)\b')
+        self.set_theme(False)
+
+    def set_theme(self, dark: bool, color_theme: str = DEFAULT_SYNTAX_COLOR_THEME) -> None:
+        colors = _syntax_colors(color_theme, dark, "json")
+        self._key_format = _syntax_format(colors["key"], True)
+        self._string_format = _syntax_format(colors["string"])
+        self._number_format = _syntax_format(colors["number"])
+        self._literal_format = _syntax_format(colors["literal"], True)
+        self.rehighlight()
+
+    def highlightBlock(self, text: str) -> None:  # type: ignore[override]
+        for pattern, text_format in (
+            (self._string_pattern, self._string_format),
+            (self._number_pattern, self._number_format),
+            (self._literal_pattern, self._literal_format),
+            (self._key_pattern, self._key_format),
+        ):
+            match_iterator = pattern.globalMatch(text)
+            while match_iterator.hasNext():
+                match = match_iterator.next()
+                self.setFormat(match.capturedStart(), match.capturedLength(), text_format)
+
+
+class HeaderSyntaxHighlighter(QSyntaxHighlighter):
+    """Native highlighting for HTTP-style ``Name: value`` detail panes."""
+
+    def __init__(self, document) -> None:
+        super().__init__(document)
+        self._name_pattern = QRegularExpression(r"^[^:\r\n]+(?=:)")
+        self._url_pattern = QRegularExpression(r"\bhttps?://[^\s;,]+")
+        self._mime_pattern = QRegularExpression(r"\b(?:application|audio|font|image|multipart|text|video)/[^\s;,]+")
+        self._status_pattern = QRegularExpression(r"\b[1-5]\d\d\b")
+        self._directive_pattern = QRegularExpression(
+            r"\b(?:no-cache|no-store|max-age|private|public|same-origin|strict|upgrade-insecure-requests)\b"
+        )
+        self.set_theme(False)
+
+    def set_theme(self, dark: bool, color_theme: str = DEFAULT_SYNTAX_COLOR_THEME) -> None:
+        colors = _syntax_colors(color_theme, dark, "headers")
+        self._name_format = _syntax_format(colors["name"], True)
+        self._url_format = _syntax_format(colors["url"])
+        self._mime_format = _syntax_format(colors["mime"])
+        self._status_format = _syntax_format(colors["status"], True)
+        self._directive_format = _syntax_format(colors["directive"])
+        self.rehighlight()
+
+    def highlightBlock(self, text: str) -> None:  # type: ignore[override]
+        for pattern, text_format in (
+            (self._url_pattern, self._url_format),
+            (self._mime_pattern, self._mime_format),
+            (self._status_pattern, self._status_format),
+            (self._directive_pattern, self._directive_format),
+            (self._name_pattern, self._name_format),
+        ):
+            match_iterator = pattern.globalMatch(text)
+            while match_iterator.hasNext():
+                match = match_iterator.next()
+                self.setFormat(match.capturedStart(), match.capturedLength(), text_format)
+
+
+class DetailTextEdit(QPlainTextEdit):
+    """A read-only detail pane that keeps very large payloads responsive."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setUndoRedoEnabled(False)
+        self.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        self._wrap_requested = True
+        self._render_text = ""
+        self._render_offset = 0
+        self._render_token = 0
+        self._syntax_kind = "plain"
+        self._render_timer = QTimer(self)
+        self._render_timer.setInterval(1)
+        self._render_timer.timeout.connect(self._append_render_chunk)
+        self._json_highlighter = JsonSyntaxHighlighter(self.document())
+        self._header_highlighter = HeaderSyntaxHighlighter(self.document())
+        self._json_highlighter.setDocument(None)
+        self._header_highlighter.setDocument(None)
+
+    def set_wrap_enabled(self, enabled: bool) -> None:
+        self._wrap_requested = enabled
+        self._apply_wrap_policy()
+
+    def set_syntax_theme(
+        self,
+        dark: bool,
+        color_theme: str = DEFAULT_SYNTAX_COLOR_THEME,
+    ) -> None:
+        self._json_highlighter.set_theme(dark, color_theme)
+        self._header_highlighter.set_theme(dark, color_theme)
+
+    def render_text(self, text: str, syntax_kind: str = "plain") -> None:
+        self._render_token += 1
+        self._render_timer.stop()
+        self._render_text = text
+        self._render_offset = 0
+        self._syntax_kind = syntax_kind if len(text) <= DETAIL_HIGHLIGHT_MAX_CHARS else "plain"
+        self._json_highlighter.setDocument(
+            self.document() if self._syntax_kind == "json" else None
+        )
+        self._header_highlighter.setDocument(
+            self.document() if self._syntax_kind == "headers" else None
+        )
+        self._apply_wrap_policy()
+        self.clear()
+
+        if not text:
+            return
+        if len(text) < DETAIL_INCREMENTAL_RENDER_CHARS:
+            self.setPlainText(text)
+            return
+
+        self.setToolTip(
+            f"Rendering {len(text):,} characters in the background. The complete payload remains available."
+        )
+        self._render_timer.start()
+
+    def clear_rendered_text(self) -> None:
+        self._render_token += 1
+        self._render_timer.stop()
+        self._render_text = ""
+        self._render_offset = 0
+        self._syntax_kind = "plain"
+        self._json_highlighter.setDocument(None)
+        self._header_highlighter.setDocument(None)
+        self.clear()
+
+    def _apply_wrap_policy(self) -> None:
+        should_wrap = self._wrap_requested and len(self._render_text) <= DETAIL_NOWRAP_CHARS
+        self.setWordWrapMode(
+            QTextOption.WrapAtWordBoundaryOrAnywhere if should_wrap else QTextOption.NoWrap
+        )
+
+    def _append_render_chunk(self) -> None:
+        if self._render_offset >= len(self._render_text):
+            self._render_timer.stop()
+            self.setToolTip("")
+            return
+
+        chunk_end = min(self._render_offset + DETAIL_RENDER_CHUNK_CHARS, len(self._render_text))
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.insertText(self._render_text[self._render_offset : chunk_end])
+        self._render_offset = chunk_end
+
+
+class HarLoadWorker(QObject):
+    loaded = Signal(str, object)
+    failed = Signal(str, str)
+
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self.path = path
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            self.loaded.emit(str(self.path), parse_har(payload))
+        except Exception as exc:
+            self.failed.emit(str(self.path), f"{type(exc).__name__}: {exc}")
+
+
+class EntryFilterWorker(QObject):
+    filtered = Signal(int, str, object)
+
+    def __init__(self, serial: int, query: str, entries: list[HarEntry]) -> None:
+        super().__init__()
+        self.serial = serial
+        self.query = query
+        self.entries = entries
+
+    @Slot()
+    def run(self) -> None:
+        needle = self.query.casefold()
+        matches = [entry for entry in self.entries if entry.matches_query(needle)]
+        self.filtered.emit(self.serial, self.query, matches)
 
 
 class ThemeListener(QObject):
@@ -383,15 +694,28 @@ class MainWindow(QMainWindow):
         self._theme_thread: QThread | None = None
         self._column_actions: dict[str, QAction] = {}
         self._width_preset_actions: dict[str, QAction] = {}
+        self._syntax_theme_actions: dict[str, QAction] = {}
+        self._syntax_color_theme = DEFAULT_SYNTAX_COLOR_THEME
+        self._is_dark_theme = False
         self._waterfall_delegate = WaterfallDelegate(self)
         self.settings = QSettings("Montel G.", APP_NAME)
         self._current_entry: HarEntry | None = None
         self._mcp_server = None
         self._mcp_service = None
+        self._load_thread: QThread | None = None
+        self._load_worker: HarLoadWorker | None = None
+        self._filter_thread: QThread | None = None
+        self._filter_worker: EntryFilterWorker | None = None
+        self._filter_serial = 0
+        self._pending_filter_query = ""
+        self._filter_timer = QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.timeout.connect(self._run_scheduled_filter)
 
         self._build_ui()
         self._start_mcp_service()
         self._restore_window_state()
+        self._restore_syntax_color_theme()
         self._apply_theme(self._detect_theme())
         self._start_theme_listener()
 
@@ -506,11 +830,13 @@ class MainWindow(QMainWindow):
         self._set_mcp_status(False)
         self._build_column_actions()
         self._build_width_preset_actions()
+        self._build_syntax_theme_actions()
         self._apply_special_column_behavior()
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
         self.view_menu = self.menuBar().addMenu("&View")
+        self.settings_menu = self.menuBar().addMenu("&Settings")
         help_menu = self.menuBar().addMenu("&Help")
 
         open_action = QAction("&Open…", self)
@@ -542,6 +868,8 @@ class MainWindow(QMainWindow):
         self.reset_columns_action = QAction("Reset Columns to Default", self)
         self.reset_columns_action.triggered.connect(self._reset_columns_to_default)
         self.view_menu.addAction(self.reset_columns_action)
+
+        self.syntax_theme_menu = self.settings_menu.addMenu("Text Color Theme")
 
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about)
@@ -588,10 +916,20 @@ class MainWindow(QMainWindow):
             self.width_presets_menu.addAction(action)
             self._width_preset_actions[preset_name] = action
 
-    def _make_text_tab(self, _name: str) -> QPlainTextEdit:
-        edit = QPlainTextEdit()
-        edit.setReadOnly(True)
-        edit.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+    def _build_syntax_theme_actions(self) -> None:
+        self.syntax_theme_menu.clear()
+        self._syntax_theme_actions.clear()
+        for theme_name in SYNTAX_COLOR_THEMES:
+            action = QAction(theme_name, self, checkable=True)
+            action.triggered.connect(
+                lambda _checked, name=theme_name: self._set_syntax_color_theme(name)
+            )
+            self.syntax_theme_menu.addAction(action)
+            self._syntax_theme_actions[theme_name] = action
+        self._set_checked_syntax_color_theme(self._syntax_color_theme)
+
+    def _make_text_tab(self, _name: str) -> DetailTextEdit:
+        edit = DetailTextEdit()
         edit.setContextMenuPolicy(Qt.CustomContextMenu)
         edit.customContextMenuRequested.connect(
             lambda position, widget=edit: self._show_detail_copy_menu(widget, position)
@@ -599,8 +937,11 @@ class MainWindow(QMainWindow):
         return edit
 
     def _toggle_wrap(self, checked: bool) -> None:
-        mode = QTextOption.WrapAtWordBoundaryOrAnywhere if checked else QTextOption.NoWrap
-        for widget in [
+        for widget in self._detail_widgets():
+            widget.set_wrap_enabled(checked)
+
+    def _detail_widgets(self) -> list[DetailTextEdit]:
+        return [
             self.request_headers,
             self.request_query,
             self.request_cookies,
@@ -610,8 +951,32 @@ class MainWindow(QMainWindow):
             self.response_params,
             self.response_cookies,
             self.response_body,
-        ]:
-            widget.setWordWrapMode(mode)
+        ]
+
+    def _set_checked_syntax_color_theme(self, theme_name: str) -> None:
+        for name, action in self._syntax_theme_actions.items():
+            action.blockSignals(True)
+            action.setChecked(name == theme_name)
+            action.blockSignals(False)
+
+    def _restore_syntax_color_theme(self) -> None:
+        self.settings.beginGroup(SETTINGS_GROUP)
+        saved_theme = str(self.settings.value("syntax_color_theme", DEFAULT_SYNTAX_COLOR_THEME))
+        self.settings.endGroup()
+        self._set_syntax_color_theme(saved_theme, save=False)
+
+    def _set_syntax_color_theme(self, theme_name: str, save: bool = True) -> None:
+        if theme_name not in SYNTAX_COLOR_THEMES:
+            theme_name = DEFAULT_SYNTAX_COLOR_THEME
+        self._syntax_color_theme = theme_name
+        self._set_checked_syntax_color_theme(theme_name)
+        for widget in self._detail_widgets():
+            widget.set_syntax_theme(self._is_dark_theme, theme_name)
+        if save:
+            self.settings.beginGroup(SETTINGS_GROUP)
+            self.settings.setValue("syntax_color_theme", theme_name)
+            self.settings.endGroup()
+            self.statusBar().showMessage(f"Text color theme: {theme_name}", 2500)
 
     def _show_about(self) -> None:
         QMessageBox.information(
@@ -758,6 +1123,7 @@ class MainWindow(QMainWindow):
             return
 
         dark = theme == "dark"
+        self._is_dark_theme = dark
         app.setStyle(QStyleFactory.create("Fusion"))
         app.setPalette(self._build_palette(dark))
 
@@ -849,6 +1215,8 @@ class MainWindow(QMainWindow):
             )
 
         self._refresh_widget_tree()
+        for widget in self._detail_widgets():
+            widget.set_syntax_theme(dark, self._syntax_color_theme)
         self.table.viewport().update()
 
     def _apply_special_column_behavior(self) -> None:
@@ -1072,13 +1440,35 @@ class MainWindow(QMainWindow):
             self.load_file(self.current_path)
 
     def load_file(self, path: Path) -> None:
-        try:
-            text = path.read_text(encoding="utf-8")
-            payload = json.loads(text)
-            entries = parse_har(payload)
-        except Exception as exc:
-            QMessageBox.critical(self, "Failed to open HAR", f"{type(exc).__name__}: {exc}")
+        if self._load_thread is not None and self._load_thread.isRunning():
+            self.statusBar().showMessage("A HAR file is already loading", 3000)
             return
+
+        # Results from a search against the previous HAR must never replace this file's rows.
+        self._filter_serial += 1
+        self._filter_timer.stop()
+        self.statusBar().showMessage(f"Loading {path.name}…")
+        self.summary_label.setText(f"Loading {path.name}…")
+        self._load_thread = QThread(self)
+        self._load_worker = HarLoadWorker(path)
+        self._load_worker.moveToThread(self._load_thread)
+        self._load_thread.started.connect(self._load_worker.run)
+        self._load_worker.loaded.connect(self._har_loaded)
+        self._load_worker.failed.connect(self._har_load_failed)
+        self._load_worker.loaded.connect(lambda *_args: self._load_thread and self._load_thread.quit())
+        self._load_worker.failed.connect(lambda *_args: self._load_thread and self._load_thread.quit())
+        self._load_thread.finished.connect(self._load_worker.deleteLater)
+        self._load_thread.finished.connect(self._load_thread_finished)
+        self._load_thread.start()
+
+    def _load_thread_finished(self) -> None:
+        if self._load_thread is not None:
+            self._load_thread.deleteLater()
+        self._load_thread = None
+        self._load_worker = None
+
+    def _har_loaded(self, path_text: str, entries: list[HarEntry]) -> None:
+        path = Path(path_text)
 
         self.current_path = path
         self.model.set_entries(entries)
@@ -1093,18 +1483,66 @@ class MainWindow(QMainWindow):
         else:
             self._clear_details()
         self.table.viewport().update()
+        if self.search_box.text().strip():
+            self._search_changed(self.search_box.text())
+
+    def _har_load_failed(self, _path_text: str, error: str) -> None:
+        QMessageBox.critical(self, "Failed to open HAR", error)
+        if self.current_path is None:
+            self.summary_label.setText("Open a HAR file to begin.")
 
     def _search_changed(self, text: str) -> None:
-        self.model.apply_filter(text)
+        self._filter_serial += 1
+        self._pending_filter_query = text.strip()
+        self._filter_timer.start(SEARCH_DEBOUNCE_MS)
+        self.statusBar().showMessage("Filtering entries…")
+
+    def _run_scheduled_filter(self) -> None:
+        if self._filter_thread is not None and self._filter_thread.isRunning():
+            return
+
+        query = self._pending_filter_query
+        if not query:
+            self._apply_filtered_entries(self._filter_serial, query, self.model.entries[:])
+            return
+
+        self._filter_thread = QThread(self)
+        self._filter_worker = EntryFilterWorker(self._filter_serial, query, self.model.entries)
+        self._filter_worker.moveToThread(self._filter_thread)
+        self._filter_thread.started.connect(self._filter_worker.run)
+        self._filter_worker.filtered.connect(self._filtered_entries_ready)
+        self._filter_worker.filtered.connect(lambda *_args: self._filter_thread and self._filter_thread.quit())
+        self._filter_thread.finished.connect(self._filter_worker.deleteLater)
+        self._filter_thread.finished.connect(self._filter_thread_finished)
+        self._filter_thread.start()
+
+    def _filter_thread_finished(self) -> None:
+        if self._filter_thread is not None:
+            self._filter_thread.deleteLater()
+        self._filter_thread = None
+        self._filter_worker = None
+        if self._pending_filter_query != self.model.query:
+            self._filter_timer.start(1)
+
+    def _filtered_entries_ready(self, serial: int, query: str, entries: list[HarEntry]) -> None:
+        if serial != self._filter_serial:
+            return
+        self._apply_filtered_entries(serial, query, entries)
+
+    def _apply_filtered_entries(self, serial: int, query: str, entries: list[HarEntry]) -> None:
+        if serial != self._filter_serial:
+            return
+        self.model.set_filtered_entries(entries, query)
         self.summary_label.setText(
-            f"{self.current_path.name if self.current_path else 'No file'} — {len(self.model.filtered_entries)} visible entries"
+            f"{self.current_path.name if self.current_path else 'No file'} — {len(entries)} visible entries"
         )
-        if self.model.filtered_entries:
+        if entries:
             self.table.selectRow(0)
-            self._display_entry(self.model.filtered_entries[0])
+            self._display_entry(entries[0])
         else:
             self._clear_details()
         self.table.viewport().update()
+        self.statusBar().showMessage("", 1)
 
     def _table_row_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         entry = self.model.entry_at(current.row())
@@ -1123,31 +1561,23 @@ class MainWindow(QMainWindow):
             return
 
         request_widget = self.request_tabs.currentWidget()
-        if isinstance(request_widget, QPlainTextEdit):
+        if isinstance(request_widget, DetailTextEdit):
             request_field = self._request_widget_field_map.get(request_widget)
             if request_field is not None:
-                request_widget.setPlainText(str(getattr(self._current_entry, request_field, "")))
+                text = str(getattr(self._current_entry, request_field, ""))
+                request_widget.render_text(text, _detail_syntax_kind(request_field, text))
 
         response_widget = self.response_tabs.currentWidget()
-        if isinstance(response_widget, QPlainTextEdit):
+        if isinstance(response_widget, DetailTextEdit):
             response_field = self._response_widget_field_map.get(response_widget)
             if response_field is not None:
-                response_widget.setPlainText(str(getattr(self._current_entry, response_field, "")))
+                text = str(getattr(self._current_entry, response_field, ""))
+                response_widget.render_text(text, _detail_syntax_kind(response_field, text))
 
     def _clear_details(self) -> None:
         self._current_entry = None
-        for widget in [
-            self.request_headers,
-            self.request_query,
-            self.request_cookies,
-            self.request_body,
-            self.request_saml,
-            self.response_headers,
-            self.response_params,
-            self.response_cookies,
-            self.response_body,
-        ]:
-            widget.clear()
+        for widget in self._detail_widgets():
+            widget.clear_rendered_text()
 
 
 def _fmt_pairs(items: list[dict[str, Any]] | None, key_name: str = "name", value_name: str = "value") -> str:
@@ -1205,6 +1635,17 @@ def _stringify_value(value: Any) -> str:
 def _join_sections(sections: list[tuple[str, str]]) -> str:
     chunks = [f"{title}\n{body}" for title, body in sections if body]
     return "\n\n".join(chunks)
+
+
+def _is_json_text(text: str) -> bool:
+    stripped = text.lstrip()
+    return bool(stripped) and stripped[0] in "{["
+
+
+def _detail_syntax_kind(field_name: str, text: str) -> str:
+    if field_name.endswith("_headers"):
+        return "headers"
+    return "json" if _is_json_text(text) else "plain"
 
 
 def _maybe_pretty_json(text: str, mime_hint: str) -> str:

@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.7.0]
+
+### Added
+- Native rich JSON previews in request and response detail panes, with pretty indentation and syntax colors for keys, strings, numbers, and JSON literals
+- Native HTTP header highlighting in both request and response header tabs, with distinct colors for header names, URLs, MIME types, status codes, and common cache/security directives
+- Persistent text color-theme selector under `Settings > Text Color Theme`, with Default (the original palette), Nord, Solarized, and Monokai options for parsed request/response text
+
+### Improved
+- HAR reading, JSON formatting, base64 decoding, and entry construction now run off the UI thread, keeping the window interactive while large HAR files load
+- Large request and response payloads render progressively in the detail pane instead of blocking the interface in a single text-layout pass
+- Very large payloads automatically use no-wrap rendering and skip syntax highlighting past a safe threshold; the complete payload is still retained and viewable
+- Entry filtering is debounced and runs in a background worker, avoiding UI pauses while searching body-heavy HAR files
+- Waterfall scaling is cached rather than recalculated for every painted table cell
+
+### Stability
+- Disabled undo history in read-only detail previews to avoid an unnecessary second in-memory copy of large event bodies
+- Preserved active-tab-only detail rendering so inactive panes do not duplicate large text documents
+
+### Developer / Packaging
+- Standalone macOS builds now use optimized Python bytecode and strip symbols where safe to reduce at-rest bundle size
+- Version metadata aligned for the performance, UX, and stability overhaul (`1.7.0`)
+
+---
+
 ## [1.6.5]
 
 ### Changed

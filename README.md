@@ -3,6 +3,13 @@
 A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
 <img width="2670" height="1456" alt="image" src="https://github.com/user-attachments/assets/b6bb5c0d-ebe5-465c-8556-39d796d4c7ae" />
 
+## What’s new in 1.7.0
+
+- Smooth handling of large HAR files: loading and filtering run in the background, while large request/response bodies render progressively instead of freezing the interface.
+- Rich request and response inspection: valid JSON is formatted and syntax-highlighted; HTTP headers receive native color coding for names and common values.
+- Personalizable text colors: choose Default (the original palette), Nord, Solarized, or Monokai under `Settings > Text Color Theme`; the choice is saved across launches.
+- Stability and footprint work: read-only detail panes avoid unnecessary undo-memory copies, and the optimized macOS app bundle is approximately 111 MB.
+
 ## Features
 
 - Modernized for current Python and Qt using `PySide6` (replacing legacy PyQt5)
@@ -20,7 +27,10 @@ A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/hars
 - Detailed request/response inspection:
   - headers, parameters, cookies, bodies
   - SAML/XML payload formatting
-- JSON request/response bodies are formatted natively when valid JSON is detected
+- JSON request/response bodies are formatted natively when valid JSON is detected and shown with editor-style syntax colors for keys, strings, numbers, and literals; request/response headers also color-code header names and common HTTP values
+- Select `Settings > Text Color Theme` to choose Default, Nord, Solarized, or Monokai colors for parsed request/response text; the selected theme is remembered across launches
+- Large HAR files load and filter in the background to keep the interface responsive
+- Large request/response bodies render progressively; extremely large payloads automatically switch to no-wrap/plain rendering to remain responsive while preserving the complete text
 - Multipart file payloads (`application/octet-stream`) are redacted from text view for readability and stability
 - Word wrap is enabled by default in detail panes (toggle via `View > Word Wrap`)
 - Local MCP server for querying HAR files from Claude Desktop or other MCP clients
@@ -68,7 +78,7 @@ On macOS, launch the compiled app with:
 open dist/HarsharkNGX.app
 ```
 
-The generated bundle is intentionally not tracked by git. Build output such as `build/`, `dist/`, `.app`, `.dmg`, and `.pkg` artifacts is ignored locally.
+The generated bundle is intentionally not tracked by git. The production spec compiles Python modules with optimizations and strips safe native symbols to reduce its at-rest size; most remaining size is the Qt runtime required by the native UI. Build output such as `build/`, `dist/`, `.app`, `.dmg`, and `.pkg` artifacts is ignored locally.
 
 ### macOS Gatekeeper Note
 

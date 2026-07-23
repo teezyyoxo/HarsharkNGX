@@ -24,7 +24,8 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    optimize=0,
+    # Compile collected Python modules with production optimizations to trim the bundle.
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 
@@ -36,7 +37,7 @@ exe = EXE(
     name="HarsharkNGX",
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
     console=False,
     disable_windowed_traceback=False,
@@ -49,7 +50,7 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    strip=False,
+    strip=True,
     upx=True,
     upx_exclude=[],
     name="HarsharkNGX",
@@ -62,8 +63,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "HarsharkNGX",
         "CFBundleName": "HarsharkNGX",
-        "CFBundleShortVersionString": "1.6.5",
-        "CFBundleVersion": "1.6.5",
+        "CFBundleShortVersionString": "1.7.0",
+        "CFBundleVersion": "1.7.0",
         "NSHighResolutionCapable": True,
     },
 )

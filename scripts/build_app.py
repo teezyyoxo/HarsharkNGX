@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -30,23 +31,46 @@ def build_macos_icon() -> None:
     if sys.platform != "darwin" or not SOURCE_ICON.exists():
         return
 
+    # Preserve the visible transparent PNG exactly, but clear RGB data hidden behind
+    # transparent pixels. Without this normalization, macOS can surface an old matte
+    # while rendering the generated .icns.
+    from PySide6.QtGui import QImage
+
+    source_image = QImage(str(SOURCE_ICON))
+    if source_image.isNull():
+        raise RuntimeError(f"Unable to read icon source: {SOURCE_ICON}")
+
     ICONSET.mkdir(parents=True, exist_ok=True)
-    for size, filename in ICON_SIZES:
-        subprocess.check_call(
-            [
-                "sips",
-                "-z",
-                str(size),
-                str(size),
-                str(SOURCE_ICON),
-                "--out",
-                str(ICONSET / filename),
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            cwd=ROOT,
-        )
-    subprocess.check_call(["iconutil", "-c", "icns", str(ICONSET), "-o", str(ICNS)], cwd=ROOT)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        normalized_source = Path(temp_dir) / "AppIcon.png"
+        normalized_image = source_image.convertToFormat(
+            QImage.Format.Format_RGBA8888_Premultiplied
+        ).convertToFormat(QImage.Format.Format_RGBA8888)
+        if not normalized_image.save(str(normalized_source), "PNG"):
+            raise RuntimeError(f"Unable to normalize icon source: {SOURCE_ICON}")
+
+        for size, filename in ICON_SIZES:
+            subprocess.check_call(
+                [
+                    "sips",
+                    "-z",
+                    str(size),
+                    str(size),
+                    str(normalized_source),
+                    "--out",
+                    str(ICONSET / filename),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                cwd=ROOT,
+            )
+    # iconutil exits successfully without replacing an existing .icns on some macOS versions.
+    # Remove the generated artifact first so every build uses the tracked transparent source.
+    ICNS.unlink(missing_ok=True)
+    subprocess.check_call(
+        ["iconutil", "--convert", "icns", "--output", str(ICNS), str(ICONSET)],
+        cwd=ROOT,
+    )
 
 
 def main() -> int:
