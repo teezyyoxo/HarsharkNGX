@@ -21,3 +21,19 @@ packaging/pyinstaller/AppIcon.icns
 packaging/pyinstaller/AppIcon.iconset/
 
 .DS_Store
+
+# Xcode user-specific files
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Xcode build artifacts
+DerivedData/
+*.xcresult
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# macOS
+.DS_Store
