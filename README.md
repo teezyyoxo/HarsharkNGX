@@ -38,6 +38,20 @@ open native/HarsharkNGX/HarsharkNGX.xcodeproj
 
 Choose **Open HAR Files**, drop a `.har` file into the window, or try the sample capture. Use **⌘,** for Settings. Closing the final capture returns to the welcome screen.
 
+### macOS Security & Gatekeeper
+
+Native macOS development and pre-release builds may not yet be signed with an Apple Developer ID or notarized by Apple. When first opening a downloaded build, Gatekeeper may warn that the developer cannot be verified or Apple cannot check the app for malicious software. This means macOS cannot verify its developer identity or notarization; it is not, by itself, a malware detection or an assurance of safety.
+
+If you trust the download from the official project repository or release page and are confident it has not been tampered with:
+
+1. Attempt to open `HarsharkNGX.app`, then dismiss the warning.
+2. Open **System Settings → Privacy & Security**, scroll to **Security**, and select **Open Anyway**.
+3. Authenticate if prompted and confirm **Open**.
+
+Keep Gatekeeper enabled. If macOS reports malware, says the app will damage your computer, or says it is damaged, stop and verify the download with the maintainers instead. See [Apple’s guide to safely opening apps](https://support.apple.com/en-us/102445).
+
+Apple Developer ID signing and Apple notarization are planned for future public distributions; no release date is set.
+
 ## Connect Claude with MCP
 
 The native MCP server runs independently of the GUI. Claude launches it on demand over stdio; it can read explicitly supplied HAR files or snapshots shared from the app.
