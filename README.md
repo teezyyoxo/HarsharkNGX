@@ -1,172 +1,69 @@
-# HarsharkNGX
+<p align="center">
+  <img src="native/HarsharkNGX/HarsharkNGX/Assets.xcassets/AppIcon.appiconset/icon_512x512_2x.png" width="128" height="128" alt="HarsharkNGX shark icon">
+</p>
+<h1 align="center">HarsharkNGX</h1>
+<p align="center"><strong>See the whole request.</strong><br>A native macOS HAR viewer built with SwiftUI and AppKit.</p>
+<p align="center">
+  <a href="#build--run">Build &amp; run</a> ·
+  <a href="native/HarsharkNGX/MCP-SETUP.md">MCP setup</a> ·
+  <a href="native/HarsharkNGX/CHANGELOG.md">Changelog</a> ·
+  <a href="README-PYSIDE6.md">Python / PySide6 version</a>
+</p>
 
-A modernized, cross-platform HAR viewer inspired by the original [MacroPolo/harshark](https://github.com/MacroPolo/harshark) project.
-<img width="2670" height="1456" alt="image" src="https://github.com/user-attachments/assets/b6bb5c0d-ebe5-465c-8556-39d796d4c7ae" />
+<!-- Future native hero/banner and screenshots belong here. -->
 
-## What’s new in 1.7.0
+**Native v1.0.0 is in development** on `feature/native-swift-macos`. Build from source to try it today. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
 
-- Smooth handling of large HAR files: loading and filtering run in the background, while large request/response bodies render progressively instead of freezing the interface.
-- Rich request and response inspection: valid JSON is formatted and syntax-highlighted; HTTP headers receive native color coding for names and common values.
-- Personalizable text colors: choose Default (the original palette), Nord, Solarized, or Monokai under `Settings > Text Color Theme`; the choice is saved across launches.
-- Stability and footprint work: read-only detail panes avoid unnecessary undo-memory copies, and the optimized macOS app bundle is approximately 111 MB.
+## Explore your captures
 
-## Features
+- **Keep captures together.** Open multiple HAR files, switch between them, or start with the built-in sample.
+- **Find the request.** Search, filter, and sort a customizable table with HTTP status colors and waterfall timings.
+- **Inspect both sides.** Explore request and response bodies, headers, cookies, parameters, and timings with formatted JSON and syntax highlighting.
+- **Make it yours.** Choose system, light, or dark appearance; adjust columns, density, timestamps, and body previews in Settings.
+- **Work locally.** Inspect files on your Mac, export redacted summaries, and explicitly share capture snapshots with MCP clients.
 
-- Modernized for current Python and Qt using `PySide6` (replacing legacy PyQt5)
-- Native desktop UI (with macOS light/dark mode support + including live theme switching)
-- Waterfall timing column for visual request-duration comparison
-- HTTP status color coding for quick response analysis
-- Reorderable columns with persistent layout (order, visibility, widths)
-- Column visibility toggling via View menu or header right-click menu
-- Column width presets: Compact, Balanced, Comfortable
-- Splitter-based UI with resizable table and detail panes
-- Lower detail pane now mirrors original Harshark flow:
-  - left side request tabs (Body, Parameters, Cookies, Headers, SAML)
-  - right side response tabs (Body, Parameters, Cookies, Headers)
-- Keyboard navigation now updates selected event details immediately
-- Detailed request/response inspection:
-  - headers, parameters, cookies, bodies
-  - SAML/XML payload formatting
-- JSON request/response bodies are formatted natively when valid JSON is detected and shown with editor-style syntax colors for keys, strings, numbers, and literals; request/response headers also color-code header names and common HTTP values
-- Select `Settings > Text Color Theme` to choose Default, Nord, Solarized, or Monokai colors for parsed request/response text; the selected theme is remembered across launches
-- Large HAR files load and filter in the background to keep the interface responsive
-- Large request/response bodies render progressively; extremely large payloads automatically switch to no-wrap/plain rendering to remain responsive while preserving the complete text
-- Multipart file payloads (`application/octet-stream`) are redacted from text view for readability and stability
-- Word wrap is enabled by default in detail panes (toggle via `View > Word Wrap`)
-- Local MCP server for querying HAR files from Claude Desktop or other MCP clients
-- Faster HAR loading and more robust parsing with improved handling of missing fields
-- Local-first workflow with no network dependency required
+## Build & run
 
-## Requirements
+**Requirements:** macOS 26.7 or later for the current app target, and Xcode with a compatible macOS SDK and Swift 6.2 or later. The current build is verified with Xcode 27.1. No Python or Qt runtime is required for the native app.
 
-- Python 3.10+
-- macOS, Linux, and *technically* Windows, but I have not tested this on a Windows machine yet. Stay tuned!
-
-## Install
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
+```sh
+git clone --branch feature/native-swift-macos https://github.com/teezyyoxo/harsharkngx.git
+cd harsharkngx
+open native/HarsharkNGX/HarsharkNGX.xcodeproj
 ```
 
-## Run
+1. Select the **HarsharkNGX** scheme and **My Mac** destination.
+2. If Xcode requests signing credentials, select your own team under **Signing & Capabilities**.
+3. Press **⌘R** to build and run, or **⌘B** to build only.
 
-```bash
-source .venv/bin/activate
-python -m harsharkngx
+Choose **Open HAR Files**, drop a `.har` file into the window, or try the sample capture. Use **⌘,** for Settings. Closing the final capture returns to the welcome screen.
+
+## Connect Claude with MCP
+
+The native MCP server runs independently of the GUI. Claude launches it on demand over stdio; it can read explicitly supplied HAR files or snapshots shared from the app.
+
+From the repository root:
+
+```sh
+cd native/HarsharkNGX
+./scripts/install-mcp.sh
 ```
 
-## Build a Standalone App Bundle
+Then follow the [Claude configuration guide](native/HarsharkNGX/MCP-SETUP.md). The installer uses a stable per-user location, so Claude does not depend on an Xcode build folder.
 
-HarsharkNGX can be compiled into a local desktop app with PyInstaller. On macOS this produces `dist/HarsharkNGX.app`; on other platforms PyInstaller produces the native runnable output under `dist/`.
+## Development
 
-The source app icon is tracked at `packaging/assets/AppIcon_Transparent.png`. On macOS, the build script converts that PNG into the generated `.icns` file used by the bundle. Generated icon files are ignored by git.
+Run the app and UI tests in Xcode with **⌘U**. Run the shared core tests from Terminal:
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e ".[packaging]"
-python scripts/build_app.py
+```sh
+cd native/HarsharkNGX
+swift test
 ```
 
-On macOS, launch the compiled app with:
+[Validation & known limitations](native/HarsharkNGX/VALIDATION.md) · [Performance measurements](native/HarsharkNGX/PERFORMANCE.md) · [Native changelog](native/HarsharkNGX/CHANGELOG.md)
 
-```bash
-open dist/HarsharkNGX.app
-```
+The native migration is still being refined; complete Python feature parity and a signed, packaged release are not yet claimed.
 
-The generated bundle is intentionally not tracked by git. The production spec compiles Python modules with optimizations and strips safe native symbols to reduce its at-rest size; most remaining size is the Qt runtime required by the native UI. Build output such as `build/`, `dist/`, `.app`, `.dmg`, and `.pkg` artifacts is ignored locally.
+---
 
-### macOS Gatekeeper Note
-
-Locally built app bundles are not code-signed or notarized. If macOS blocks the first launch, right-click `HarsharkNGX.app`, choose `Open`, and confirm the prompt. For redistribution outside your own machine, sign and notarize the bundle with your Apple Developer credentials.
-
-## MCP Server
-
-HarsharkNGX starts a local MCP service automatically when the desktop app opens, and stops it when the app closes. Claude Desktop connects through a stdio bridge process, so Claude can inspect the HAR file currently loaded in HarsharkNGX.
-
-The bottom-right status bar control shows `MCP Server: active` when the in-app MCP service starts successfully, or `MCP Server: inactive` if it cannot start. The server is on by default; click the status control to stop or restart it.
-
-Run the app as usual:
-
-```bash
-source .venv/bin/activate
-python -m harsharkngx
-```
-
-The app listens locally on `127.0.0.1:8765`. For development, you can also run a standalone TCP MCP service:
-
-```bash
-source .venv/bin/activate
-python -m harsharkngx.mcp_server --tcp /absolute/path/to/file.har
-```
-
-The service exposes tools to summarize the loaded HAR, list entries, search entries, and fetch full request/response details. It also exposes MCP resources for the loaded HAR summary and entry list.
-
-### Claude Desktop Configuration
-
-Add this to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "harsharkngx": {
-      "type": "stdio",
-      "command": "/Users/mgray/GitHub/harsharkngx/.venv/bin/python",
-      "args": [
-        "-m",
-        "harsharkngx.mcp_server",
-        "--bridge"
-      ],
-      "env": {}
-    }
-  }
-}
-```
-
-Open HarsharkNGX before using the MCP tools in Claude. If HarsharkNGX is closed, the bridge has nothing to connect to.
-
-The standalone app bundle still starts the same local MCP service. The `harsharkngx-mcp` stdio bridge is currently provided by the Python package install, so keep a source/venv install available if you use Claude Desktop integration.
-
-## Pro Tip: Create a One-Command Launcher
-
-If you use HarsharkNGX frequently, you can create a simple shell alias so you can launch it from anywhere with a single command.
-
-### macOS / Linux (zsh or bash)
-
-Add this to your `~/.zshrc` or `~/.bashrc`:
-
-```bash
-alias harshark='~/GitHub/harsharkngx/.venv/bin/python -m harsharkngx'
-```
-
-Then reload your shell (as applicable – I use zsh):
-```bash
-source ~/.zshrc
-```
-
-Now you can launch the app from anywhere by running `harshark`.
-
-## Notes
-
-This is a best-effort modernization rather than a byte-for-byte fork. It keeps the spirit of the original app, but the codebase has been refreshed around a simpler Qt6 architecture.
-If for some reason your venv gets into a bad state, do the following to reset it:
-```bash
-deactivate
-rm -rf .venv
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e .
-python -m harsharkngx
-```
-
-## Acknowledgements
-
-This project is inspired by the original Harshark project:
-https://github.com/MacroPolo/harshark
-
-The original concept and foundation are credited to its author.
+Inspired by the original [Harshark](https://github.com/MacroPolo/harshark) by MacroPolo.
