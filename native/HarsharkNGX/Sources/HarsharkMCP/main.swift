@@ -9,8 +9,13 @@ final class MCPServer {
     private var currentPath: String?
     private var initialized = false
     private let sessionDirectory: URL
+    private let accessControl: MCPAccessControl
+    private var accessState: MCPAccessControl.State?
 
-    init(sessionDirectory: URL) { self.sessionDirectory = sessionDirectory }
+    init(sessionDirectory: URL) {
+        self.sessionDirectory = sessionDirectory
+        accessControl = MCPAccessControl(sessionDirectory: sessionDirectory)
+    }
 
     func run() {
         var pending = Data()
@@ -54,6 +59,19 @@ final class MCPServer {
         }
         let params = message["params"] as? [String: Any] ?? [:]
         do {
+            // Refresh for every request, including already-connected clients.
+            // A revision also clears cached captures after an off/on cycle between requests.
+            let access: MCPAccessControl.State
+            do {
+                access = try accessControl.read()
+            } catch {
+                clearCapture()
+                throw MCPError.message("MCP access settings could not be read. Check HarsharkNGX before retrying.")
+            }
+            if access != accessState {
+                clearCapture()
+                accessState = access
+            }
             let result: [String: Any]
             switch method {
             case "initialize":
@@ -70,6 +88,7 @@ final class MCPServer {
                 case "tools/list": result = ["tools": tools]
                 case "tools/call":
                     do {
+                        guard access.enabled else { throw MCPError.message("MCP is off. Enable MCP using the bottom-right button in HarsharkNGX.") }
                         let payload = try call(params["name"] as? String ?? "", params["arguments"] as? [String: Any] ?? [:])
                         result = ["content": [["type": "text", "text": try json(payload)]]]
                     } catch {
@@ -78,6 +97,7 @@ final class MCPServer {
                 case "resources/list":
                     result = ["resources": [resource("summary", "Loaded HAR summary"), resource("entries", "Loaded HAR entries")]]
                 case "resources/read":
+                    guard access.enabled else { throw MCPError.message("MCP is off. Enable MCP using the bottom-right button in HarsharkNGX.") }
                     let uri = params["uri"] as? String ?? ""
                     let payload: [String: Any]
                     if uri == "harsharkngx://summary" { payload = try summary() }
@@ -93,6 +113,12 @@ final class MCPServer {
         } catch {
             writeError(id: id, code: -32000, message: error.localizedDescription)
         }
+    }
+
+    private func clearCapture() {
+        archive = nil
+        rows = []
+        currentPath = nil
     }
 
     private func call(_ name: String, _ args: [String: Any]) throws -> [String: Any] {

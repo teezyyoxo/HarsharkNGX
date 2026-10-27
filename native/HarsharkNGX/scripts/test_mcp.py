@@ -45,6 +45,39 @@ with tempfile.TemporaryDirectory(prefix="harshark-mcp-test-") as directory:
             assert select.select([process.stdout], [], [], 5)[0], "Server did not respond while stdin remained open"
             reply = json.loads(process.stdout.readline())
             replies[reply["id"]] = reply
+
+        def exchange(method, params=None):
+            process.stdin.write((json.dumps({"jsonrpc": "2.0", "id": 1000,
+                                            "method": method, "params": params or {}}) + "\n").encode())
+            process.stdin.flush()
+            assert select.select([process.stdout], [], [], 5)[0], "Server stopped responding after access change"
+            return json.loads(process.stdout.readline())
+
+        def set_access(enabled):
+            temporary = Path(directory) / ".mcp-access.tmp"
+            temporary.write_text(json.dumps({"enabled": enabled, "revision": str(uuid.uuid4())}))
+            temporary.replace(Path(directory) / ".mcp-access.json")
+
+        set_access(False)
+        assert "result" in exchange("ping"), "Disabled server should keep the client connection healthy"
+        for name, arguments in [
+            ("get_body", {"index": 0}), ("list_sessions", {}),
+            ("load_har", {"path": str(snapshot)}), ("open_session", {"id": session_id})
+        ]:
+            result = exchange("tools/call", {"name": name, "arguments": arguments})["result"]
+            assert result["isError"] and "MCP is off" in result["content"][0]["text"]
+        assert "error" in exchange("resources/read", {"uri": "harsharkngx://entries"})
+        set_access(True)
+        assert exchange("tools/call", {"name": "summarize_har"})["result"]["isError"], "Disabled capture must be released"
+        assert "isError" not in exchange("tools/call", {"name": "open_session", "arguments": {"id": session_id}})["result"]
+        # Even a toggle between requests must invalidate the cached capture.
+        set_access(False)
+        set_access(True)
+        assert exchange("tools/call", {"name": "summarize_har"})["result"]["isError"]
+        (Path(directory) / ".mcp-access.json").write_text("invalid settings")
+        assert "error" in exchange("tools/call", {"name": "list_sessions"}), "Unreadable settings must not allow access"
+        set_access(True)
+        assert "isError" not in exchange("tools/call", {"name": "open_session", "arguments": {"id": session_id}})["result"]
         process.stdin.close()
         assert process.wait(timeout=5) == 0
         assert not process.stderr.read(), "Unexpected diagnostic output"
@@ -70,4 +103,4 @@ with tempfile.TemporaryDirectory(prefix="harshark-mcp-test-") as directory:
     assert replies[failed_load]["result"]["isError"]
     assert payload(retained)["entry_count"] == 6
     assert json.loads(replies[resource]["result"]["contents"][0]["text"])["total_matches"] == 6
-    print("MCP regression passed: interactive startup, tools, shared sessions, bodies, paging, search, resources, error recovery, EOF shutdown.")
+    print("MCP regression passed: default-on startup, tools, shared sessions, bodies, paging, search, resources, live off/on control, cache invalidation, error recovery, EOF shutdown.")

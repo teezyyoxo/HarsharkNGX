@@ -1,8 +1,55 @@
 import Foundation
 import Testing
+import AppKit
 @testable import HarsharkNGX
 
 struct HarsharkNGXTests {
+    @Test @MainActor func requestCellColorsFollowSelectionAndReuse() {
+        let cell = RequestTableCell()
+        let field = NSTextField(labelWithString: "POST")
+        cell.addSubview(field)
+        cell.textField = field
+        cell.normalTextColor = NativeColors.method("POST")
+        #expect(field.textColor == cell.normalTextColor)
+
+        cell.backgroundStyle = .emphasized
+        #expect(field.textColor == NSColor.alternateSelectedControlTextColor)
+        // Reloading or reusing a selected cell must preserve selection contrast.
+        cell.normalTextColor = NativeColors.status(500)
+        #expect(field.textColor == NSColor.alternateSelectedControlTextColor)
+
+        cell.backgroundStyle = .normal
+        #expect(field.textColor == cell.normalTextColor)
+    }
+
+    @Test @MainActor func mcpDefaultsOnAndTogglePersistsAcrossWorkspaces() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let access = MCPAccessControl(sessionDirectory: directory)
+        let workspace = Workspace(mcpAccess: access)
+        #expect(workspace.mcpEnabled)
+        workspace.toggleMCP()
+        #expect(!workspace.mcpEnabled)
+        #expect(try !access.read().enabled)
+        let reopened = Workspace(mcpAccess: access)
+        #expect(!reopened.mcpEnabled)
+        reopened.toggleMCP()
+        #expect(reopened.mcpEnabled)
+        #expect(try access.read().enabled)
+    }
+
+    @Test @MainActor func failedMCPToggleReportsErrorWithoutChangingDisplayedState() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let access = MCPAccessControl(sessionDirectory: file)
+        let workspace = Workspace(mcpAccess: access)
+        #expect(workspace.mcpEnabled)
+        try Data().write(to: file)
+        workspace.toggleMCP()
+        #expect(workspace.mcpEnabled)
+        #expect(workspace.errorMessage != nil)
+    }
+
     @Test @MainActor func captureLifecyclePreservesOtherSessionsAndReleasesClosedSession() throws {
         let workspace = Workspace()
         func session() throws -> HARSession {
@@ -95,6 +142,21 @@ struct HarsharkNGXTests {
         #expect(detail.syntax == "json")
         #expect(detail.text.contains("\"ok\""))
         #expect(detail.notice.isEmpty)
+    }
+
+    @Test @MainActor func smallInspectorPreviewsAreImmediateAndLargeOnesStayAsynchronous() throws {
+        let small = try HARParser().parse(Data(#"{"log":{"entries":[{"request":{"postData":{"text":"hello"}},"response":{"content":{"text":"world"}}}]}}"#.utf8))
+        let entry = try #require(small.entries.first)
+        for response in [false, true] {
+            let detail = InspectorPreparation.immediateDetail(entry: entry, response: response,
+                tab: .body, pretty: true, maximumBodyBytes: 1024)
+            #expect(detail?.text == (response ? "world" : "hello"))
+        }
+        let largeJSON = #"{"log":{"entries":[{"request":{},"response":{"content":{"text":""#
+            + String(repeating: "x", count: 70_000) + #""}}}]}}"#
+        let large = try HARParser().parse(Data(largeJSON.utf8))
+        #expect(InspectorPreparation.immediateDetail(entry: try #require(large.entries.first),
+            response: true, tab: .body, pretty: true, maximumBodyBytes: 1024) == nil)
     }
 
     @Test func missingBodyIsExplained() throws {

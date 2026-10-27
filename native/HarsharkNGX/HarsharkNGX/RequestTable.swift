@@ -158,7 +158,7 @@ struct RequestTable: NSViewRepresentable {
                 view.needsDisplay = true
                 return view
             }
-            let cell = (tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? NSTableCellView) ?? NSTableCellView()
+            let cell = (tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? RequestTableCell) ?? RequestTableCell()
             cell.identifier = tableColumn.identifier
             if cell.textField == nil {
                 let field = NSTextField(labelWithString: "")
@@ -177,7 +177,7 @@ struct RequestTable: NSViewRepresentable {
             field?.font = ["status", "method", "duration"].contains(key)
                 ? .monospacedSystemFont(ofSize: 12, weight: key == "status" ? .semibold : .regular)
                 : .systemFont(ofSize: 12)
-            field?.textColor = !colorize ? .labelColor : key == "status" ? NativeColors.status(item.status) : key == "method" ? NativeColors.method(item.method) : .labelColor
+            cell.normalTextColor = !colorize ? .labelColor : key == "status" ? NativeColors.status(item.status) : key == "method" ? NativeColors.method(item.method) : .labelColor
             field?.setAccessibilityLabel(key == "status" ? "HTTP status \(item.status)" : field?.stringValue)
             cell.toolTip = key == "path" ? item.url : item.value(for: key)
             return cell
@@ -234,6 +234,22 @@ struct RequestTable: NSViewRepresentable {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
         }
+    }
+}
+
+/// AppKit updates backgroundStyle for selection and window focus changes.
+final class RequestTableCell: NSTableCellView {
+    var normalTextColor: NSColor = .labelColor {
+        didSet { updateTextColor() }
+    }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { updateTextColor() }
+    }
+
+    private func updateTextColor() {
+        textField?.textColor = backgroundStyle == .emphasized
+            ? .alternateSelectedControlTextColor : normalTextColor
     }
 }
 

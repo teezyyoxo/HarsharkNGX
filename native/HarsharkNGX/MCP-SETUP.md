@@ -23,6 +23,14 @@ Replace only the existing `harsharkngx` entry in Claude Desktop's `mcpServers` c
 
 Remove the old Python `--bridge` configuration. The native app never starts the old TCP service, so there is no competing listener. Each client owns its own stdio subprocess and loaded capture.
 
+## Optional on/off control
+
+MCP is enabled by default, and Claude can launch it without opening the app. The bottom-right **MCP On / MCP Off** button optionally disables or enables capture access. Your choice persists across app and server restarts; the indicator shows access permission, not whether a client is connected.
+
+While off, tools and resource reads are blocked. Existing clients remain connected and can resume after you turn access on and reload a capture. Shared snapshots are kept. Install the updated executable and restart Claude once to enable this control for previously installed servers.
+
+The setting is stored in `.mcp-access.json` in the shared sessions directory. Servers using a custom `--session-directory` have their own setting; the app controls the default directory.
+
 ## Files and shared GUI sessions
 
 - `load_har` opens a local file directly, whether or not the GUI is running.

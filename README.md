@@ -10,7 +10,7 @@
   <a href="README-PYSIDE6.md">Python / PySide6 version</a>
 </p>
 
-<!-- Future native hero/banner and screenshots belong here. -->
+![HarsharkNGX showing the sample capture, request table, and waterfall timings](native/HarsharkNGX/docs/screenshots/overview.png)
 
 **Native v1.0.0 is in development** on `feature/native-swift-macos`. Build from source to try it today. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
 
@@ -21,6 +21,10 @@
 - **Inspect both sides.** Explore request and response bodies, headers, cookies, parameters, and timings with formatted JSON and syntax highlighting.
 - **Make it yours.** Choose system, light, or dark appearance; adjust columns, density, timestamps, and body previews in Settings.
 - **Work locally.** Inspect files on your Mac, export redacted summaries, and explicitly share capture snapshots with MCP clients.
+
+![Inspecting a sample response in the native macOS app](native/HarsharkNGX/docs/screenshots/response-inspector.png)
+
+*Explore the bundled sample capture and inspect individual requests and responses.*
 
 ## Build & run
 
@@ -54,7 +58,7 @@ Apple Developer ID signing and Apple notarization are planned for future public 
 
 ## Connect Claude with MCP
 
-The native MCP server runs independently of the GUI. Claude launches it on demand over stdio; it can read explicitly supplied HAR files or snapshots shared from the app.
+The native MCP server runs independently of the GUI. Claude launches it on demand over stdio; it can read explicitly supplied HAR files or snapshots shared from the app. MCP is enabled by default; use the bottom-right **MCP On / MCP Off** button to optionally disable or re-enable access.
 
 From the repository root:
 

@@ -28,12 +28,14 @@ struct InspectorPane: View {
                 Label(response ? "Response" : "Request", systemImage: response ? "arrow.down.left" : "arrow.up.right")
                     .font(.headline)
                 Spacer()
+                Text(entry.method)
+                    .font(.callout.monospaced().weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
                 if response {
                     Text(entry.status.map(String.init) ?? "—")
                         .font(.callout.monospaced().weight(.semibold))
                         .foregroundStyle(Color(nsColor: colorizeStatus ? NativeColors.status(entry.status ?? 0) : .labelColor))
-                } else {
-                    Text(entry.method).font(.callout.monospaced().weight(.semibold)).foregroundStyle(.secondary)
                 }
                 Menu {
                     Toggle("Pretty Print JSON", isOn: $pretty)
@@ -43,7 +45,9 @@ struct InspectorPane: View {
                     Button("Copy URL") { copy(entry.url) }
                     Button("Export Body…") { workspace.exportBody(response ? entry.responseBody : entry.requestBody) }
                 } label: { Image(systemName: "ellipsis.circle") }
-                .menuStyle(.borderlessButton).frame(width: 22)
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
                 .help("Inspector options").accessibilityLabel(response ? "Response options" : "Request options")
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
@@ -101,6 +105,14 @@ struct InspectorPane: View {
         }
         .background(.background)
         .task(id: request) {
+            // Finish small previews in one UI update, without publishing a loading state.
+            if let immediate = InspectorPreparation.immediateDetail(entry: entry, response: response,
+                    tab: request.tab, pretty: request.pretty, maximumBodyBytes: request.previewBytes) {
+                page = 0
+                detail = immediate
+                loading = false
+                return
+            }
             loading = true
             page = 0
             detail = HARDetail()
@@ -119,6 +131,17 @@ struct InspectorPane: View {
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+enum InspectorPreparation {
+    static func immediateDetail(entry: HAREntry, response: Bool, tab: HARDetailTab,
+                                pretty: Bool, maximumBodyBytes: Int) -> HARDetail? {
+        // Bound synchronous decoding and formatting, including lazy file-backed text.
+        // Larger entries continue through the cancellable background path.
+        guard JSONValue.object(entry.raw).fitsJSONBudget(64 * 1024) else { return nil }
+        return HARFormatter.detail(entry: entry, response: response, tab: tab,
+                                   pretty: pretty, maximumBodyBytes: maximumBodyBytes)
     }
 }
 

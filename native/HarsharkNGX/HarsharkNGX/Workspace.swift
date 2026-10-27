@@ -123,8 +123,30 @@ final class Workspace {
     static let shared = Workspace()
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    private let mcpAccess: MCPAccessControl
+    private(set) var mcpEnabled = false
+
+    init(defaults: UserDefaults = .standard, mcpAccess: MCPAccessControl? = nil) {
         self.defaults = defaults
+        self.mcpAccess = mcpAccess ?? MCPAccessControl(
+            sessionDirectory: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("HarsharkNGX/Sessions", isDirectory: true)
+        )
+        do {
+            mcpEnabled = try self.mcpAccess.read().enabled
+        } catch {
+            errorMessage = "Unable to read MCP access settings.\n\(error.localizedDescription)"
+        }
+    }
+
+    func toggleMCP() {
+        do {
+            let enabled = try !mcpAccess.read().enabled
+            try mcpAccess.setEnabled(enabled)
+            mcpEnabled = enabled
+        } catch {
+            errorMessage = "Unable to change MCP access.\n\(error.localizedDescription)"
+        }
     }
     var sessions: [HARSession] = []
     private var didStart = false

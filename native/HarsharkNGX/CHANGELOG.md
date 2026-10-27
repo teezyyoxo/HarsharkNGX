@@ -45,7 +45,15 @@ This changelog tracks the native macOS application separately from the Python ap
 ### Documentation and branding — 2026-10-27
 - Refreshed the repository README for native v1.0.0 with Xcode build/run steps and concise feature, MCP, and development links.
 - Preserved the previous Python/PySide6 README as README-PYSIDE6.md, linked from the new README.
-- Adopted the supplied blue/cyan shark icon set at all ten macOS asset sizes and in the README header. A larger banner and native screenshots remain planned.
+- Adopted the supplied blue/cyan shark icon set at all ten macOS asset sizes and in the README header. Added native overview and response-inspector screenshots to the README; a larger banner remains planned.
+
+### Layout and MCP controls — 2026-10-27
+- Fixed footer clipping and kept the request table full-width when selection is cleared, including clicks in empty table space.
+- Method and status labels use the system selection text color on highlighted rows and restore their HTTP colors when the highlight loses emphasis.
+- Added a persistent, default-on MCP access toggle; connected servers enforce changes and discard cached captures across off/on cycles.
+- Refreshed README screenshots and documented MCP access control.
+- Fixed clipped inspector options menus, showed the HTTP method in both inspector headers alongside the response status, and centered summary values over their labels.
+- Removed the loading flash for small inspector previews by preparing them in one UI update; large previews retain cancellable background processing.
 
 ### Current limitations
 - This remains an in-development native migration, not a packaged release or a claim of complete Python feature parity.

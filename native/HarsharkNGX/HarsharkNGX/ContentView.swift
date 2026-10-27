@@ -6,15 +6,19 @@ struct ContentView: View {
     @AppStorage("appearance") private var appearance = "System"
 
     var body: some View {
-        NavigationSplitView {
-            CaptureSidebar(workspace: workspace)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
-        } detail: {
-            if let session = workspace.selectedSession {
-                CaptureView(session: session, workspace: workspace).id(session.id)
-            } else {
-                WelcomeView(open: workspace.chooseFiles, sample: workspace.openSample)
+        VStack(spacing: 0) {
+            NavigationSplitView {
+                CaptureSidebar(workspace: workspace)
+                    .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+            } detail: {
+                if let session = workspace.selectedSession {
+                    CaptureView(session: session, workspace: workspace).id(session.id)
+                } else {
+                    WelcomeView(open: workspace.chooseFiles, sample: workspace.openSample)
+                }
             }
+            Divider()
+            WorkspaceStatus(workspace: workspace)
         }
         .preferredColorScheme(appearance == "System" ? nil : (appearance == "Dark" ? .dark : .light))
         .toolbar {
@@ -22,9 +26,6 @@ struct ContentView: View {
                 Button(action: workspace.chooseFiles) { Label("Open HAR", systemImage: "folder.badge.plus") }
                     .help("Open HAR files (⌘O)")
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            WorkspaceStatus(workspace: workspace)
         }
         .overlay {
             if dropTargeted {
@@ -84,7 +85,7 @@ struct CaptureSidebar: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
-                Label("Local by design", systemImage: "lock.shield")
+                Label("Local", systemImage: "lock.shield")
                     .fixedSize(horizontal: false, vertical: true)
                     .font(.caption.weight(.medium))
                 Text("Your captures stay on this Mac.")
@@ -150,13 +151,33 @@ struct WorkspaceStatus: View {
                 Text("Ready to inspect")
             }
             Spacer()
-            Label("Offline", systemImage: "lock.fill").fixedSize()
+            MCPStatusButton(workspace: workspace)
             Text("1.0.0").foregroundStyle(.tertiary)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14).padding(.vertical, 8)
         .background(.bar)
+    }
+}
+
+private struct MCPStatusButton: View {
+    let workspace: Workspace
+
+    var body: some View {
+        Button(action: workspace.toggleMCP) {
+            Label(workspace.mcpEnabled ? "MCP On" : "MCP Off",
+                  systemImage: workspace.mcpEnabled ? "power.circle.fill" : "power.circle")
+                .foregroundStyle(workspace.mcpEnabled ? Color.green : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .accessibilityIdentifier("mcpToggle")
+        .accessibilityLabel("MCP server access")
+        .accessibilityValue(workspace.mcpEnabled ? "On" : "Off")
+        .help(workspace.mcpEnabled
+              ? "Disable MCP requests. Clients launch the server; this does not indicate a connected client."
+              : "Enable MCP requests. Clients launch the server when they connect.")
     }
 }
 
@@ -195,7 +216,7 @@ struct CaptureView: View {
             VSplitView {
                 RequestTable(session: session)
                     .background(SplitViewPersistence(name: "HarsharkMainSplitV1").frame(width: 0, height: 0))
-                    .frame(minHeight: 150, idealHeight: 340)
+                    .frame(maxWidth: .infinity, minHeight: 150, idealHeight: 340)
                     .overlay {
                         if session.visibleRows.isEmpty {
                             ContentUnavailableView(
@@ -228,9 +249,10 @@ struct CaptureView: View {
                 } else {
                     ContentUnavailableView("Select a request", systemImage: "cursorarrow.click",
                                            description: Text("Inspect its headers, payload, cookies, and timings."))
-                        .frame(minHeight: 220)
+                        .frame(maxWidth: .infinity, minHeight: 220)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle(session.name)
         .toolbar {
@@ -283,7 +305,7 @@ struct SummaryMetric: View {
     let value: String
     let color: Color
     var body: some View {
-        VStack(alignment: .trailing, spacing: 3) {
+        VStack(alignment: .center, spacing: 3) {
             Text(value).font(.title3.monospacedDigit().weight(.semibold)).foregroundStyle(color)
             Text(title).font(.caption).foregroundStyle(.secondary)
         }
