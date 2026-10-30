@@ -80,7 +80,7 @@ final class MCPServer {
                 initialized = true
                 result = ["protocolVersion": supported.contains(requested) ? requested : "2025-11-25",
                           "capabilities": ["tools": ["listChanged": false], "resources": ["subscribe": false, "listChanged": false]],
-                          "serverInfo": ["name": "harsharkngx", "version": "1.0.0"]]
+                          "serverInfo": ["name": "harsharkngx", "version": "1.0.1"]]
             case "ping": result = [:]
             default:
                 guard initialized else { throw MCPError.message("Call initialize before using the server.") }
@@ -284,9 +284,9 @@ enum MCPError: LocalizedError {
 
 let arguments = CommandLine.arguments
 if arguments.contains("--help") {
-    print("HarsharkNGX MCP 1.0.0\nUsage: harsharkngx-mcp [--session-directory PATH]\nRuns a standalone MCP stdio server. Use load_har to open a file.")
+    print("HarsharkNGX MCP 1.0.1\nUsage: harsharkngx-mcp [--session-directory PATH]\nRuns a standalone MCP stdio server. Use load_har to open a file.")
 } else if arguments.contains("--version") {
-    print("1.0.0")
+    print("1.0.1")
 } else {
     let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Containers/com.teezyyoxo.HarsharkNGX/Data/Library/Application Support/HarsharkNGX/Sessions", isDirectory: true)

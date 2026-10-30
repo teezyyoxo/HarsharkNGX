@@ -90,7 +90,7 @@ with tempfile.TemporaryDirectory(prefix="harshark-mcp-test-") as directory:
     def payload(identifier):
         return json.loads(replies[identifier]["result"]["content"][0]["text"])
 
-    assert replies[initialize]["result"]["serverInfo"]["version"] == "1.0.0"
+    assert replies[initialize]["result"]["serverInfo"]["version"] == "1.0.1"
     assert len(replies[discovery]["result"]["tools"]) == 8
     assert replies[unloaded]["result"]["isError"]
     assert payload(sessions)["sessions"][0]["id"] == session_id

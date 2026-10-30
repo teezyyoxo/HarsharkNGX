@@ -13,7 +13,10 @@ struct HarsharkNGXApp: App {
             ContentView(workspace: workspace)
                 .frame(minWidth: 760, minHeight: 600)
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
-                .onOpenURL { workspace.open([$0]) }
+                .onOpenURL {
+                    workspace.open([$0])
+                    MainWindowFocusController.shared.requestFocus()
+                }
                 .background(MainWindowFocus(workspace: workspace).frame(width: 0, height: 0))
                 .task {
                     workspace.startup()
@@ -49,14 +52,18 @@ private struct CaptureCommands: Commands {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainWindowFocusController.shared.didFinishLaunching()
+    }
+
     func application(_ application: NSApplication, openFiles filenames: [String]) {
         Workspace.shared.open(filenames.map { URL(fileURLWithPath: $0) })
         application.reply(toOpenOrPrint: .success)
-        application.activate(ignoringOtherApps: true)
+        MainWindowFocusController.shared.requestFocus()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
         Workspace.shared.open(urls)
-        application.activate(ignoringOtherApps: true)
+        MainWindowFocusController.shared.requestFocus()
     }
 }

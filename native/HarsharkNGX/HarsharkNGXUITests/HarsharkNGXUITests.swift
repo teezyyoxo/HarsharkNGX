@@ -4,6 +4,12 @@ import AppKit
 final class HarsharkNGXUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    private var testedAppURL: URL {
+        // The runner and tested app are sibling build products. Another installed
+        // build can have the same bundle ID, so never pick the first running app.
+        Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("HarsharkNGX.app")
+    }
+
     @MainActor
     private func capture(_ app: XCUIApplication, name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -103,12 +109,15 @@ final class HarsharkNGXUITests: XCTestCase {
         let urls = ["ExternalOne.har", "ExternalTwo.har"].map { directory.appendingPathComponent($0) }
         for url in urls { try Data(#"{"log":{"entries":[]}}"#.utf8).write(to: url) }
         let app = XCUIApplication()
+        app.launchArguments = ["-startup", "Welcome", "-reuseCapture", "YES"]
         app.launch()
         XCTAssertTrue(app.links["openSample"].waitForExistence(timeout: 10))
-        let running = NSRunningApplication.runningApplications(withBundleIdentifier: "com.teezyyoxo.HarsharkNGX")
-        let bundleURL = try XCTUnwrap(running.first?.bundleURL)
-        _ = try await NSWorkspace.shared.open(urls, withApplicationAt: bundleURL, configuration: NSWorkspace.OpenConfiguration())
-        app.activate()
+        let bundleURL = testedAppURL
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bundleURL.path))
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.allowsRunningApplicationSubstitution = false
+        _ = try await NSWorkspace.shared.open(urls, withApplicationAt: bundleURL, configuration: configuration)
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
         let opened = app.outlines.staticTexts["ExternalOne.har"].waitForExistence(timeout: 10)
         XCTAssertTrue(opened)
         XCTAssertTrue(app.outlines.staticTexts["ExternalTwo.har"].waitForExistence(timeout: 10))
@@ -116,6 +125,38 @@ final class HarsharkNGXUITests: XCTestCase {
         XCTAssertEqual(app.outlines.staticTexts.matching(identifier: "ExternalOne.har").count, 1)
         XCTAssertEqual(app.outlines.staticTexts.matching(identifier: "ExternalTwo.har").count, 1)
         XCTAssertEqual(app.windows.count, 1)
+    }
+
+    @MainActor
+    func testExternalFileColdLaunchFocusesMainWindow() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = XCUIApplication()
+        app.launchArguments = ["-startup", "Welcome", "-reuseCapture", "YES"]
+        app.launch()
+        let bundleURL = testedAppURL
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bundleURL.path))
+        app.terminate()
+
+        for filename in ["ColdLaunch.har", "ColdLaunch.json"] {
+            let url = directory.appendingPathComponent(filename)
+            try Data(#"{"log":{"entries":[]}}"#.utf8).write(to: url)
+            XCTAssertEqual(app.state, .notRunning)
+            // Launch through a file-open event, as Finder and the Dock do, without
+            // calling XCTest's launch/activate methods on the resulting process.
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.allowsRunningApplicationSubstitution = false
+            configuration.createsNewApplicationInstance = true
+            configuration.arguments = app.launchArguments
+            let running = try await NSWorkspace.shared.open([url], withApplicationAt: bundleURL, configuration: configuration)
+            XCTAssertEqual(running.bundleURL?.standardizedFileURL, bundleURL.standardizedFileURL)
+            let launchedApp = XCUIApplication(bundleIdentifier: "com.teezyyoxo.HarsharkNGX")
+            XCTAssertTrue(launchedApp.outlines.staticTexts[filename].waitForExistence(timeout: 10))
+            XCTAssertTrue(launchedApp.wait(for: .runningForeground, timeout: 10), filename)
+            XCTAssertEqual(launchedApp.windows.count, 1)
+            launchedApp.terminate()
+        }
     }
 
     @MainActor

@@ -2,7 +2,20 @@
 
 This changelog tracks the native macOS application separately from the Python application's release history.
 
-## 1.0.0 — In development
+## 1.0.1 — 2026-10-30
+
+### Fixed
+- Opening `.har` or `.json` captures by dropping them onto the Dock icon now brings the main window to the foreground, including when the app is launched by the drop. Focus waits for launch completion and the SwiftUI window to be ready; hidden or minimized capture windows are restored.
+- Both SwiftUI and AppKit external file-open handlers request main-window focus. Added LaunchServices UI regressions for cold launches with both extensions; external multi-file opening now checks foreground state without calling the test application's activation helper.
+- Preserved SwiftUI's window delegate during activation. Command–W still closes the selected capture through a window-scoped keyboard monitor, avoiding delegate callback crashes when bringing windows forward.
+
+### Changed
+- Bumped the native app and bundled MCP version to `1.0.1`.
+
+### Validation
+- Passed 27 core tests, 9 app tests, 4 targeted UI tests, and the standalone MCP regression. UI coverage includes LaunchServices cold launches for `.har` and `.json`, multi-file opening, Command–W, and Settings; physical Dock drag gestures remain a manual check.
+
+## 1.0.0
 
 ### Added
 - A local, UI-independent `HarsharkCore` Swift package with no external dependencies, shared by the macOS app and an independent MCP executable.

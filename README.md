@@ -12,7 +12,7 @@
 
 ![HarsharkNGX showing the sample capture, request table, and waterfall timings](native/HarsharkNGX/docs/screenshots/overview.png)
 
-**Native v1.0.0 is in development** on `feature/native-swift-macos`. Build from source to try it today. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
+**Native v1.0.1 is in development** on `feature/native-swift-macos`. Build from source to try it today. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
 
 ## Explore your captures
 
