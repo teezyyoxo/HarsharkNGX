@@ -5,8 +5,17 @@ import SwiftUI
 struct HarsharkNGXApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var workspace = Workspace.shared
+    @Environment(\.openWindow) private var openWindow
+    private let showSetupOnLaunch: Bool
+    @State private var initialSetupPresented = false
 
-    init() { AppPreferences.registerDefaults() }
+    init() {
+        showSetupOnLaunch = SetupLaunchPolicy.beginLaunch(
+            defaults: .standard, domain: Bundle.main.bundleIdentifier ?? "com.teezyyoxo.HarsharkNGX",
+            configurationDirectory: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("HarsharkNGX"))
+        AppPreferences.registerDefaults()
+    }
 
     var body: some Scene {
         WindowGroup("HarsharkNGX", id: "main") {
@@ -20,6 +29,12 @@ struct HarsharkNGXApp: App {
                 .background(MainWindowFocus(workspace: workspace).frame(width: 0, height: 0))
                 .task {
                     workspace.startup()
+                    let arguments = ProcessInfo.processInfo.arguments
+                    if !initialSetupPresented && (arguments.contains("--setup") || (showSetupOnLaunch
+                        && ProcessInfo.processInfo.environment["HARSHARK_SKIP_SETUP"] != "1")) {
+                        initialSetupPresented = true
+                        openWindow(id: "setup")
+                    }
                 }
         }
         .defaultSize(width: 1440, height: 920)
@@ -27,9 +42,17 @@ struct HarsharkNGXApp: App {
             CaptureCommands(workspace: workspace)
             CommandGroup(after: .help) {
                 Button("Open Sample Capture", action: workspace.openSample)
+                Button("Setup Assistant…") { openWindow(id: "setup") }
             }
         }
         Settings { SettingsView(workspace: workspace) }
+        Window("Setup Assistant", id: "setup") {
+            SetupAssistantView()
+        }
+        .defaultSize(width: 760, height: 760)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+        .windowResizability(.contentMinSize)
     }
 }
 

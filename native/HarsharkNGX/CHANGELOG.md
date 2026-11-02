@@ -2,6 +2,27 @@
 
 This changelog tracks the native macOS application separately from the Python application's release history.
 
+## 1.0.2 — 2026-11-02
+
+### Added
+- A Setup Assistant that opens automatically only on a fresh install with no existing app preferences/configuration, reopenable from Help and Settings → MCP Integration, with guided helper installation, Full Disk Access instructions, Finder/path shortcuts, and Claude configuration verification.
+- Live green checkmarks for installed helper, verified shared-data access, and matching Claude configuration. Permission status updates once per second after Check Access; configuration status updates as the selected file is saved.
+- The MCP helper is bundled with the GUI and can be installed without Xcode or a source checkout. A background helper app lets LaunchServices run permission checks independently of the GUI’s sandbox, avoiding inherited-access false positives.
+- A permission probe that reads only HarsharkNGX’s check marker and MCP settings; missing data, denied access, and invalid settings do not produce a success checkmark. The monitor exits when the assistant closes and has a ten-minute lifetime limit.
+
+### Changed
+- Opening or switching captures automatically resizes the main window based on measured column content, visible row count, and bounded payload previews, constrained to the current display’s usable area. Table columns retain readable widths with horizontal scrolling for content wider than the screen; inspector tabs wrap instead of disappearing offscreen.
+- Native app, redacted-export metadata, and MCP versions are now `1.0.2` (app build `2`).
+- The stable `bin/harsharkngx-mcp` command now links to `bin/HarsharkMCP.app/Contents/MacOS/harsharkngx-mcp`. Existing Claude command paths continue to work; upgrades may require re-adding or re-enabling the helper in Full Disk Access, followed by restarting Claude.
+- Documented the permissions workflow and its limits: the check verifies effective shared-data access, not the Full Disk Access switch or a live Claude connection. Users change system permissions and Claude configuration themselves.
+
+### Distribution
+- The native release ZIP includes the GUI and MCP helper. Development builds remain ad hoc signed and are not Developer ID signed or notarized.
+
+### Validation
+- Passed 29 core tests, 12 app tests, and all 10 UI tests across the suite and targeted final reruns. Coverage includes fresh-install detection, helper installation/upgrades, automatic capture sizing/reopening, screen bounds, all inspector tabs, narrow layouts, keyboard selection, Settings, and LaunchServices file opening.
+- Standalone MCP and independent LaunchServices permission-monitor regressions passed. The monitor checks live availability, access, invalid-settings recovery, and shutdown using fixtures; changing macOS’s Full Disk Access switch remains a manual system interaction.
+
 ## 1.0.1 — 2026-10-30
 
 ### Fixed
@@ -69,7 +90,7 @@ This changelog tracks the native macOS application separately from the Python ap
 - Removed the loading flash for small inspector previews by preparing them in one UI update; large previews retain cancellable background processing.
 
 ### Current limitations
-- This remains an in-development native migration, not a packaged release or a claim of complete Python feature parity.
+- This remains a native migration in progress; packaged native releases do not claim complete Python feature parity.
 - Metadata memory scales with entry count. Core release-build benchmarks are recorded in PERFORMANCE.md; full GUI profiling remains pending; full-body export materializes the selected body in memory.
 - The in-memory reference parser retains its 32 MiB default limit. The app and MCP file-import path uses file-backed indexing instead.
 - Inspector body previews/search use a configurable 2, 8, or 32 MiB source budget; MCP uses 8 MiB; oversized bodies have an explicit notice and can be exported from the GUI. Paging applies to decoded previews within that budget.

@@ -11,7 +11,7 @@ struct RequestTable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(session: session) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = FittingTableScrollView()
+        let scroll = NSScrollView()
         let table = NSTableView()
         table.delegate = context.coordinator
         table.dataSource = context.coordinator
@@ -20,7 +20,7 @@ struct RequestTable: NSViewRepresentable {
         table.intercellSpacing = NSSize(width: 10, height: 0)
         table.allowsMultipleSelection = false
         table.allowsColumnReordering = true
-        table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+        table.columnAutoresizingStyle = .noColumnAutoresizing
         table.autosaveName = "HarsharkRequestColumnsV2"
         table.autosaveTableColumns = true
         table.setAccessibilityIdentifier("requestTable")
@@ -28,6 +28,7 @@ struct RequestTable: NSViewRepresentable {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(key))
             column.title = title
             column.width = width
+            column.maxWidth = 8192
             column.minWidth = key == "path" ? 120 : key == "host" ? 90 : 50
             column.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: true)
             table.addTableColumn(column)
@@ -49,6 +50,8 @@ struct RequestTable: NSViewRepresentable {
             menu.addItem(item)
         }
         table.headerView?.menu = menu
+        let widths = CaptureWindowLayout.columnWidths(rows: session.rows, timestampStyle: timestampStyle)
+        for column in table.tableColumns { column.width = widths[column.identifier.rawValue] ?? column.width }
         let copyMenu = NSMenu()
         for (label, selector) in [("Copy URL", #selector(Coordinator.copyURL)),
                                   ("Copy Raw Entry JSON", #selector(Coordinator.copyRaw))] {
@@ -250,29 +253,6 @@ final class RequestTableCell: NSTableCellView {
     private func updateTextColor() {
         textField?.textColor = backgroundStyle == .emphasized
             ? .alternateSelectedControlTextColor : normalTextColor
-    }
-}
-
-/// Shrink excess column width when the viewport narrows, respecting readable minima.
-/// Once the minima are reached, horizontal scrolling remains available for every column.
-final class FittingTableScrollView: NSScrollView {
-    private var lastWidth: CGFloat = 0
-    override func layout() {
-        super.layout()
-        let available = contentSize.width
-        guard abs(available - lastWidth) > 1, available > 0,
-              let table = documentView as? NSTableView else { return }
-        lastWidth = available
-        let columns = table.tableColumns.filter { !$0.isHidden }
-        let spacing = CGFloat(columns.count) * table.intercellSpacing.width + 32
-        let target = max(0, available - spacing)
-        let total = columns.reduce(CGFloat.zero) { $0 + $1.width }
-        let minimum = columns.reduce(CGFloat.zero) { $0 + $1.minWidth }
-        guard total > target, total > minimum else { return }
-        let fraction = max(0, min(1, (target - minimum) / (total - minimum)))
-        for column in columns {
-            column.width = column.minWidth + (column.width - column.minWidth) * fraction
-        }
     }
 }
 

@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 import HarsharkCore
 
-/// A standalone stdio process. No AppKit, GUI connection, listener port, or Python runtime.
+/// A standalone stdio process. No GUI connection, listener port, or Python runtime.
 final class MCPServer {
     private var archive: HARArchive?
     private var rows: [HARRow] = []
@@ -80,7 +80,7 @@ final class MCPServer {
                 initialized = true
                 result = ["protocolVersion": supported.contains(requested) ? requested : "2025-11-25",
                           "capabilities": ["tools": ["listChanged": false], "resources": ["subscribe": false, "listChanged": false]],
-                          "serverInfo": ["name": "harsharkngx", "version": "1.0.1"]]
+                          "serverInfo": ["name": "harsharkngx", "version": "1.0.2"]]
             case "ping": result = [:]
             default:
                 guard initialized else { throw MCPError.message("Call initialize before using the server.") }
@@ -284,9 +284,9 @@ enum MCPError: LocalizedError {
 
 let arguments = CommandLine.arguments
 if arguments.contains("--help") {
-    print("HarsharkNGX MCP 1.0.1\nUsage: harsharkngx-mcp [--session-directory PATH]\nRuns a standalone MCP stdio server. Use load_har to open a file.")
+    print("HarsharkNGX MCP 1.0.2\nUsage: harsharkngx-mcp [--session-directory PATH]\nRuns a standalone MCP stdio server. Use load_har to open a file.")
 } else if arguments.contains("--version") {
-    print("1.0.1")
+    print("1.0.2")
 } else {
     let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Containers/com.teezyyoxo.HarsharkNGX/Data/Library/Application Support/HarsharkNGX/Sessions", isDirectory: true)
@@ -294,5 +294,11 @@ if arguments.contains("--help") {
     if let index = arguments.firstIndex(of: "--session-directory"), arguments.indices.contains(index + 1) {
         directory = URL(fileURLWithPath: (arguments[index + 1] as NSString).expandingTildeInPath)
     } else { directory = defaultDirectory }
-    MCPServer(sessionDirectory: directory).run()
+    if let index = arguments.firstIndex(of: "--permission-monitor"), arguments.indices.contains(index + 1) {
+        monitorPermissions(token: arguments[index + 1], directory: directory)
+    } else if arguments.contains("--check-permissions") {
+        print(MCPPermissionProbe.check(in: directory).rawValue)
+    } else {
+        MCPServer(sessionDirectory: directory).run()
+    }
 }

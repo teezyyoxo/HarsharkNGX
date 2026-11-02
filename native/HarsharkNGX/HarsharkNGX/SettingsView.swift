@@ -25,7 +25,7 @@ enum AppPreferences {
     }
 
     static var mcpExecutable: URL {
-        userHome.appendingPathComponent("Library/Application Support/HarsharkNGX/bin/harsharkngx-mcp")
+        MCPInstallation.shared.executable
     }
 }
 
@@ -231,6 +231,7 @@ private struct PrivacyPreferences: View {
 }
 
 private struct MCPPreferences: View {
+    @Environment(\.openWindow) private var openWindow
     @State private var diagnostic = "Choose the installed executable to grant access and check its version."
     @State private var checking = false
 
@@ -242,6 +243,8 @@ private struct MCPPreferences: View {
 
     var body: some View {
         Section("Standalone stdio server") {
+            Button("Open Setup Assistant…") { openWindow(id: "setup") }
+                .accessibilityIdentifier("openSetupAssistant")
             LabeledContent("Transport", value: "stdio · launched on demand by Claude")
             Text(AppPreferences.mcpExecutable.path).font(.caption.monospaced()).textSelection(.enabled)
             Text("No GUI, listener port, LaunchAgent, or always-running service is required. Each client owns one process and loads files explicitly or opens published snapshots.")
@@ -255,7 +258,7 @@ private struct MCPPreferences: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(configuration, forType: .string)
             }
-            Text("Run scripts/install-mcp.sh from the native project to install or upgrade. Merge this server entry into Claude Desktop’s configuration, preserving other servers, then restart Claude. Remove the old Python --bridge command. No external configuration is changed by this app.")
+            Text("Use the Setup Assistant to install the bundled helper and verify permissions, or run scripts/install-mcp.sh from the native project. Merge this server entry into Claude Desktop’s configuration, preserving other servers, then restart Claude. Remove the old Python --bridge command. No Claude configuration is changed by this app.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

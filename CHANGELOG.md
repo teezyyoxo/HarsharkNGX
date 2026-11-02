@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Native 1.0.2 — 2026-11-02
+
+- Added a privacy and permissions Setup Assistant with bundled MCP installation, live shared-data access checkmarks, and live Claude configuration verification.
+- Added automatic content-aware capture window sizing and wrapping inspector tabs. Setup auto-opens only for a fresh install without existing preferences/configuration.
+- Added instructions for Full Disk Access to prevent recurring macOS permission prompts when Claude starts.
+- See the [native changelog](native/HarsharkNGX/CHANGELOG.md) for native release details. The versions below track the Python application.
+
 ---
 
 ## [1.7.0]

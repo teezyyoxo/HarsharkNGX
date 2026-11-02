@@ -4,6 +4,65 @@ import AppKit
 @testable import HarsharkNGX
 
 struct HarsharkNGXTests {
+    @Test @MainActor func setupAppearsOnlyWithoutExistingPreferencesOrConfiguration() throws {
+        let domain = "HarsharkSetupTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: domain))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { defaults.removePersistentDomain(forName: domain); try? FileManager.default.removeItem(at: directory) }
+        defaults.register(defaults: ["startup": "Welcome"])
+        #expect(SetupLaunchPolicy.beginLaunch(defaults: defaults, domain: domain, configurationDirectory: directory))
+        #expect(!SetupLaunchPolicy.beginLaunch(defaults: defaults, domain: domain, configurationDirectory: directory))
+        defaults.removePersistentDomain(forName: domain)
+        defaults.set("Dark", forKey: "appearance")
+        #expect(!SetupLaunchPolicy.beginLaunch(defaults: defaults, domain: domain, configurationDirectory: directory))
+        defaults.removePersistentDomain(forName: domain)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        #expect(SetupLaunchPolicy.beginLaunch(defaults: defaults, domain: domain, configurationDirectory: directory))
+        defaults.removePersistentDomain(forName: domain)
+        try Data("{\"enabled\":true}".utf8).write(to: directory.appendingPathComponent(".mcp-access.json"))
+        #expect(!SetupLaunchPolicy.beginLaunch(defaults: defaults, domain: domain, configurationDirectory: directory))
+    }
+
+    @Test @MainActor func captureLayoutRespondsToMetadataAndFitsAvailableDisplay() throws {
+        let small = try HARParser().parse(Data(#"{"log":{"entries":[{"request":{"url":"https://example.test/a"},"response":{}}]}}"#.utf8))
+        let large = try HARParser().parse(Data((#"{"log":{"entries":[{"request":{"url":"https://long-hostname.example.test/"# + String(repeating: "long-path-", count: 12) + #""},"response":{}}]}}"#).utf8))
+        let shortSession = HARSession(archive: small, url: nil, name: "Short", rows: small.entries.map(HARRow.init))
+        let longSession = HARSession(archive: large, url: nil, name: "Long", rows: large.entries.map(HARRow.init))
+        let short = CaptureWindowLayout.preferredContentSize(for: shortSession)
+        let long = CaptureWindowLayout.preferredContentSize(for: longSession)
+        #expect(long.width > short.width)
+        let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 600),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: true)
+        let screen = NSRect(x: -1440, y: 30, width: 1440, height: 870)
+        let frame = CaptureWindowLayout.fittingFrame(contentSize: long, window: window, visibleFrame: screen)
+        #expect(screen.contains(frame))
+        #expect(frame.width <= screen.width && frame.height <= screen.height)
+    }
+
+    @Test @MainActor func helperInstallationPreservesStableCommandAcrossUpgrades() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? manager.removeItem(at: root) }
+        let source = root.appendingPathComponent("Source.app")
+        let directory = root.appendingPathComponent("bin")
+        let binary = source.appendingPathComponent("Contents/MacOS/harsharkngx-mcp")
+        try manager.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("first".utf8).write(to: binary)
+        try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+        try MCPHelperInstaller.install(source: source, directory: directory)
+        let command = directory.appendingPathComponent("harsharkngx-mcp")
+        #expect(try String(contentsOf: command, encoding: .utf8) == "first")
+        try Data("second".utf8).write(to: binary)
+        try MCPHelperInstaller.install(source: source, directory: directory)
+        #expect(try String(contentsOf: command, encoding: .utf8) == "second")
+        let backup = directory.appendingPathComponent("HarsharkMCP.previous.app/Contents/MacOS/harsharkngx-mcp")
+        #expect(try String(contentsOf: backup, encoding: .utf8) == "first")
+        // A bad upgrade leaves the working executable intact.
+        try manager.removeItem(at: binary)
+        #expect(throws: (any Error).self) { try MCPHelperInstaller.install(source: source, directory: directory) }
+        #expect(try String(contentsOf: command, encoding: .utf8) == "second")
+    }
+
     @Test @MainActor func requestCellColorsFollowSelectionAndReuse() {
         let cell = RequestTableCell()
         let field = NSTextField(labelWithString: "POST")

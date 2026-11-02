@@ -9,15 +9,52 @@ final class MainWindowFocusController {
     private weak var window: NSWindow?
     private var launchFinished = false
     private var focusRequested = false
+    private var pendingCaptureSize: NSSize?
+    private var pendingTableHeight: CGFloat?
 
     func didFinishLaunching() {
         launchFinished = true
         focusIfReady()
+        fitIfReady()
     }
 
     func attach(_ window: NSWindow) {
         self.window = window
         focusIfReady()
+        fitIfReady()
+    }
+
+    func fitCapture(_ session: HARSession?) {
+        pendingCaptureSize = session.map { CaptureWindowLayout.preferredContentSize(for: $0) }
+        pendingTableHeight = session.map { CaptureWindowLayout.preferredTableHeight(for: $0) }
+        fitIfReady()
+    }
+
+    private func fitIfReady() {
+        guard launchFinished, window != nil, pendingCaptureSize != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.window, let contentSize = self.pendingCaptureSize,
+                  let screen = window.screen ?? NSScreen.main else { return }
+            self.pendingCaptureSize = nil
+            guard !window.styleMask.contains(.fullScreen) else { return }
+            window.setFrame(CaptureWindowLayout.fittingFrame(contentSize: contentSize, window: window,
+                                                             visibleFrame: screen.visibleFrame), display: true, animate: false)
+            let tableHeight = self.pendingTableHeight
+            DispatchQueue.main.async {
+                window.contentView?.layoutSubtreeIfNeeded()
+                guard let content = window.contentView, let tableHeight,
+                      let split = Self.captureSplit(in: content) else { return }
+                split.setPosition(min(tableHeight, max(150, split.bounds.height - 300)), ofDividerAt: 0)
+            }
+        }
+    }
+
+    private static func captureSplit(in view: NSView) -> NSSplitView? {
+        if let split = view as? NSSplitView, split.autosaveName == "HarsharkMainSplitV1" { return split }
+        for child in view.subviews {
+            if let split = captureSplit(in: child) { return split }
+        }
+        return nil
     }
 
     func requestFocus() {

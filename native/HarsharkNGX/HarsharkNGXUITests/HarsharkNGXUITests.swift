@@ -4,6 +4,71 @@ import AppKit
 final class HarsharkNGXUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    @MainActor
+    func testOpeningCaptureResizesForContentAndKeepsInspectorControlsVisible() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = "/" + String(repeating: "long-payload-path-", count: 7)
+        let url = directory.appendingPathComponent("WidePayload.har")
+        let capture: [String: Any] = ["log": ["entries": [[
+            "request": ["method": "POST", "url": "https://payload.example.test" + path,
+                        "postData": ["text": "request body", "mimeType": "text/plain"]],
+            "response": ["status": 200, "content": ["text": String(repeating: "response line\n", count: 30),
+                                                      "mimeType": "text/plain"]]
+        ]]]]
+        try JSONSerialization.data(withJSONObject: capture).write(to: url)
+        let app = XCUIApplication()
+        app.launchArguments = ["--sample"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
+        app.launch()
+        XCTAssertTrue(app.tables["requestTable"].waitForExistence(timeout: 10))
+        let window = app.windows.firstMatch
+        let start = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1)).withOffset(CGVector(dx: -2, dy: -2))
+        let end = window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 800, dy: 650))
+        start.press(forDuration: 0.1, thenDragTo: end)
+        let narrowWidth = window.frame.width
+        openFile(url, in: app)
+        XCTAssertTrue(app.tables["requestTable"].staticTexts["payload.example.test"].waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(window.frame.width, narrowWidth + 100)
+        if let screen = NSScreen.main {
+            XCTAssertLessThanOrEqual(window.frame.width, screen.visibleFrame.width)
+            XCTAssertLessThanOrEqual(window.frame.height, screen.visibleFrame.height)
+        }
+        for control in ["requestBody", "requestParameters", "requestCookies", "requestHeaders", "requestSAML", "requestTimings", "requestRaw JSON",
+                        "responseBody", "responseParameters", "responseCookies", "responseHeaders", "responseTimings", "responseRaw JSON"] {
+            XCTAssertTrue(app.buttons[control].isHittable, "Clipped inspector control: \(control)")
+        }
+        self.capture(app, name: "Automatically sized payload window")
+        let nextStart = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1)).withOffset(CGVector(dx: -2, dy: -2))
+        let nextEnd = window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 800, dy: 650))
+        nextStart.press(forDuration: 0.1, thenDragTo: nextEnd)
+        let shrunkWidth = window.frame.width
+        openFile(url, in: app)
+        XCTAssertGreaterThan(window.frame.width, shrunkWidth + 100)
+    }
+
+    @MainActor
+    func testSetupAssistantAndReopen() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--setup"]
+        app.launch()
+        let setup = app.windows["Setup Assistant"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        XCTAssertTrue(setup.buttons["installMCPHelper"].exists)
+        XCTAssertTrue(setup.buttons["Open Full Disk Access"].exists)
+        XCTAssertTrue(setup.staticTexts["Ready to check access"].exists)
+        capture(app, name: "Setup Assistant permissions")
+        setup.buttons["finishSetup"].click()
+        XCTAssertFalse(setup.exists)
+        app.menuBars.menuBarItems["Help"].click()
+        app.menuItems["Setup Assistant…"].click()
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        setup.buttons["Copy Helper Path"].click()
+        setup.buttons["finishSetup"].click()
+        XCTAssertTrue(app.links["openSample"].waitForExistence(timeout: 5))
+    }
+
     private var testedAppURL: URL {
         // The runner and tested app are sibling build products. Another installed
         // build can have the same bundle ID, so never pick the first running app.
@@ -25,6 +90,7 @@ final class HarsharkNGXUITests: XCTestCase {
     @MainActor
     func testOpenSampleFilterAndInspect() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         // SwiftUI's link button style is exposed as an accessibility link on macOS.
         let sample = app.links["openSample"]
@@ -82,6 +148,7 @@ final class HarsharkNGXUITests: XCTestCase {
         try Data(har.replacingOccurrences(of: "fixture.example.test", with: "second.example.test").utf8).write(to: second)
         try Data("{invalid JSON".utf8).write(to: malformed)
         let app = XCUIApplication()
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         openFile(first, in: app)
         XCTAssertTrue(app.tables["requestTable"].waitForExistence(timeout: 10))
@@ -110,6 +177,7 @@ final class HarsharkNGXUITests: XCTestCase {
         for url in urls { try Data(#"{"log":{"entries":[]}}"#.utf8).write(to: url) }
         let app = XCUIApplication()
         app.launchArguments = ["-startup", "Welcome", "-reuseCapture", "YES"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         XCTAssertTrue(app.links["openSample"].waitForExistence(timeout: 10))
         let bundleURL = testedAppURL
@@ -134,6 +202,7 @@ final class HarsharkNGXUITests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let app = XCUIApplication()
         app.launchArguments = ["-startup", "Welcome", "-reuseCapture", "YES"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         let bundleURL = testedAppURL
         XCTAssertTrue(FileManager.default.fileExists(atPath: bundleURL.path))
@@ -162,6 +231,7 @@ final class HarsharkNGXUITests: XCTestCase {
     @MainActor
     func testInstalledMCPWorksWithGUIStopped() async throws {
         let app = XCUIApplication()
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         app.terminate()
         XCTAssertEqual(app.state, .notRunning)
@@ -201,6 +271,7 @@ final class HarsharkNGXUITests: XCTestCase {
     func testSettingsSectionsAndNarrowWindow() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--sample"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         XCTAssertTrue(app.tables["requestTable"].waitForExistence(timeout: 10))
         let window = app.windows.firstMatch
@@ -209,7 +280,9 @@ final class HarsharkNGXUITests: XCTestCase {
         start.press(forDuration: 0.1, thenDragTo: end)
         capture(app, name: "Narrow native viewer")
         XCTAssertTrue(app.tables["requestTable"].exists)
-        XCTAssertTrue(app.buttons["responseHeaders"].exists)
+        for control in ["requestParameters", "requestHeaders", "requestSAML", "responseHeaders"] {
+            XCTAssertTrue(app.buttons[control].isHittable, "Clipped narrow-window control: \(control)")
+        }
         app.typeKey(",", modifierFlags: .command)
         XCTAssertTrue(app.popUpButtons["startupPreference"].waitForExistence(timeout: 5))
         capture(app, name: "General Settings")
@@ -229,6 +302,7 @@ final class HarsharkNGXUITests: XCTestCase {
     func testClosingFinalCaptureReturnsToWelcome() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--sample"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         XCTAssertTrue(app.tables["requestTable"].waitForExistence(timeout: 10))
         app.menuBars.menuBarItems["File"].click()
@@ -246,14 +320,16 @@ final class HarsharkNGXUITests: XCTestCase {
     func testSampleLaunchAndKeyboardSelection() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--sample"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
         app.launch()
         let table = app.tables["requestTable"]
         let tableExists = table.waitForExistence(timeout: 10)
         capture(app, name: "Sample launch")
         XCTAssertTrue(tableExists)
         XCTAssertTrue(app.staticTexts["6 of 6 requests"].waitForExistence(timeout: 5))
-        table.click()
-        table.typeKey(.downArrow, modifierFlags: [])
+        table.staticTexts["api.example.test"].firstMatch.click()
+        app.typeKey(.downArrow, modifierFlags: [])
+        XCTAssertTrue(table.children(matching: .tableRow).element(boundBy: 1).isSelected)
         XCTAssertTrue(app.buttons["requestHeaders"].exists)
     }
 }

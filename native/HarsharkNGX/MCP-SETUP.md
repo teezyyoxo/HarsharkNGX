@@ -4,7 +4,9 @@ The native `harsharkngx-mcp` executable is a separate Swift process. Claude star
 
 ## Install
 
-From this directory, run `./scripts/install-mcp.sh`. This builds the executable and installs it atomically at:
+In v1.0.2, open **Help → Setup Assistant** (or **Settings → MCP Integration → Open Setup Assistant**). The assistant opens automatically only when no existing app preferences or configuration are found; upgrades and configured installations keep their existing startup behavior. Choose **Install / Upgrade Helper**, then select the installation folder; the default is `~/Library/Application Support/HarsharkNGX/bin`. The bundled helper requires no Xcode or source checkout.
+
+For installation from source, run `./scripts/install-mcp.sh` from this directory. Both methods install `HarsharkMCP.app` and a stable command symlink at:
 
 `~/Library/Application Support/HarsharkNGX/bin/harsharkngx-mcp`
 
@@ -22,6 +24,21 @@ Replace only the existing `harsharkngx` entry in Claude Desktop's `mcpServers` c
 ```
 
 Remove the old Python `--bridge` configuration. The native app never starts the old TCP service, so there is no competing listener. Each client owns its own stdio subprocess and loaded capture.
+
+## Privacy and permissions
+
+Claude starts the helper each time it opens. The helper reads the MCP toggle from the app’s protected container, which can cause macOS to display “harsharkngx-mcp would like to access data from other apps.” To prevent repeated prompts:
+
+1. Install the current helper in the Setup Assistant.
+2. Click **Open Full Disk Access**, or open **System Settings → Privacy & Security → Full Disk Access**.
+3. Click **+**, press **⇧⌘G**, and paste the helper app path shown in the assistant, normally `~/Library/Application Support/HarsharkNGX/bin/HarsharkMCP.app`. Add it and enable its switch. Authenticate if macOS asks.
+4. Click **Check Access**. The assistant launches the installed helper independently of the GUI’s sandbox and checks only a HarsharkNGX marker file and MCP settings. It updates every second and displays a green checkmark when shared-data access works. A failed or unavailable check never counts as granted. If macOS stops the process after a permission change, click **Check Access** again.
+5. Merge the copied MCP entry into Claude’s configuration. **Select Claude Configuration** grants read access to that file and lets the assistant verify the command and empty arguments as you save changes. Other server entries are preserved because the assistant does not write the file.
+6. Fully quit and reopen Claude. The check does not confirm a live Claude connection.
+
+Full Disk Access is a broad filesystem permission. It is optional for ordinary HAR viewing; grant it only if you want MCP integration. The app does not change system privacy permissions, inspect the TCC database, or claim to read the Full Disk Access switch. A checkmark reports effective access, which macOS may also allow through a narrower consent grant. Merely opening the assistant does not request protected-data access. The monitor stops when the assistant closes, with a ten-minute fallback lifetime; it is not a persistent service.
+
+An upgraded or re-signed helper may need to be re-added or re-enabled in Full Disk Access. The v1.0.2 helper lives in an app bundle; an older permission for the standalone executable may need to be replaced with the new helper app entry. Existing Claude command paths continue to work through the symlink. Source/development builds remain ad hoc signed; stable Developer ID signing and notarization are not yet provided.
 
 ## Optional on/off control
 
@@ -58,29 +75,15 @@ The process runs as your user and can read files that user can access; it has no
 
 ## Removal
 
-Remove the `harsharkngx` entry from Claude's configuration and restart Claude. Delete the installed executable from the `bin` directory above. Delete shared snapshots if you no longer need them. No launchd registration or Python environment cleanup is required.
+Remove the `harsharkngx` entry from Claude's configuration and restart Claude. Delete the installed `harsharkngx-mcp` symlink, `HarsharkMCP.app`, and optional `HarsharkMCP.previous.app` backup from the installation directory. Remove its Full Disk Access entry in System Settings if no longer needed. Delete shared snapshots if you no longer need them. No launchd registration or Python environment cleanup is required.
 
 The repository README covers the native app; the previous Python guide is preserved in `README-PYSIDE6.md` at the repository root.
 
-## This workstation
-
-The installed executable is `/Users/mgray/Library/Application Support/HarsharkNGX/bin/harsharkngx-mcp`, with launch arguments `[]`. The inspected Claude configuration already names this path; it was not modified during this refinement. The corrected executable has been installed, with its predecessor retained as `harsharkngx-mcp.previous`. Restart Claude to replace any older running subprocess.
-
-```json
-{
-  "mcpServers": {
-    "harsharkngx": {
-      "command": "/Users/mgray/Library/Application Support/HarsharkNGX/bin/harsharkngx-mcp",
-      "args": []
-    }
-  }
-}
-```
-
-Merge this entry into existing configuration rather than replacing the whole file. The regression command is:
+## Regression checks
 
 ```sh
-python3 -B scripts/test_mcp.py "/Users/mgray/Library/Application Support/HarsharkNGX/bin/harsharkngx-mcp"
+python3 -B scripts/test_mcp.py "/absolute/path/to/harsharkngx-mcp"
+swift scripts/test_permissions.swift "/absolute/path/to/HarsharkMCP.app"
 ```
 
-This exchanges individual requests and responses while stdin stays open, detecting the initialization stall that the earlier batch/EOF test missed. It validates a real stdio protocol connection, not the Claude application's own UI. No launchd service is needed. During removal, delete the optional `.previous` backup too.
+The MCP harness exchanges individual requests and responses while stdin stays open. The permission harness launches the actual background helper through LaunchServices, verifies live status changes and shutdown, and uses temporary fixtures without altering macOS privacy settings. Neither harness verifies Claude’s UI or automatically changes Full Disk Access.

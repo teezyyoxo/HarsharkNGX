@@ -51,8 +51,7 @@ struct InspectorPane: View {
                 .help("Inspector options").accessibilityLabel(response ? "Response options" : "Request options")
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            ScrollView(.horizontal) {
-                HStack(spacing: 3) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 3)], alignment: .leading, spacing: 3) {
                     ForEach(HARDetailTab.allCases.filter { !response || $0 != .saml }) { item in
                         Button { tab = item } label: {
                             Text(item.rawValue)
@@ -65,10 +64,8 @@ struct InspectorPane: View {
                         .accessibilityIdentifier("\(response ? "response" : "request")\(item.rawValue)")
                         .accessibilityAddTraits(tab == item ? .isSelected : [])
                     }
-                }
-                .padding(.horizontal, 10).padding(.bottom, 8)
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, 10).padding(.bottom, 8)
             Divider()
             if loading {
                 ProgressView("Preparing \(tab.rawValue.lowercased())…")

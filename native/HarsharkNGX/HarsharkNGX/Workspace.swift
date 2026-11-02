@@ -241,6 +241,7 @@ final class Workspace {
         for url in urls where url.isFileURL {
             if defaults.bool(forKey: "reuseCapture"), let existing = sessions.first(where: { $0.url?.standardizedFileURL == url.standardizedFileURL }) {
                 selectedSessionID = existing.id
+                if self === Workspace.shared { MainWindowFocusController.shared.fitCapture(existing) }
             } else if !pendingURLs.contains(url), currentImportURL != url {
                 pendingURLs.append(url)
             }

@@ -12,12 +12,13 @@
 
 ![HarsharkNGX showing the sample capture, request table, and waterfall timings](native/HarsharkNGX/docs/screenshots/overview.png)
 
-**Native v1.0.1 is in development** on `feature/native-swift-macos`. Build from source to try it today. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
+**Native v1.0.2 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.2). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
 
 ## Explore your captures
 
 - **Keep captures together.** Open multiple HAR files, switch between them, or start with the built-in sample.
 - **Find the request.** Search, filter, and sort a customizable table with HTTP status colors and waterfall timings.
+- **Fit the capture.** Opening or switching HAR files automatically sizes the window for visible columns, request count, and payload previews, within the current display. Columns keep readable content widths; long tables and payloads scroll when they exceed the screen. Inspector tabs wrap in narrow panes.
 - **Inspect both sides.** Explore request and response bodies, headers, cookies, parameters, and timings with formatted JSON and syntax highlighting.
 - **Make it yours.** Choose system, light, or dark appearance; adjust columns, density, timestamps, and body previews in Settings.
 - **Work locally.** Inspect files on your Mac, export redacted summaries, and explicitly share capture snapshots with MCP clients.
@@ -31,7 +32,7 @@
 **Requirements:** macOS 26.7 or later for the current app target, and Xcode with a compatible macOS SDK and Swift 6.2 or later. The current build is verified with Xcode 27.1. No Python or Qt runtime is required for the native app.
 
 ```sh
-git clone --branch feature/native-swift-macos https://github.com/teezyyoxo/harsharkngx.git
+git clone https://github.com/teezyyoxo/harsharkngx.git
 cd harsharkngx
 open native/HarsharkNGX/HarsharkNGX.xcodeproj
 ```
@@ -58,9 +59,17 @@ Apple Developer ID signing and Apple notarization are planned for future public 
 
 ## Connect Claude with MCP
 
-The native MCP server runs independently of the GUI. Claude launches it on demand over stdio; it can read explicitly supplied HAR files or snapshots shared from the app. MCP is enabled by default; use the bottom-right **MCP On / MCP Off** button to optionally disable or re-enable access.
+Open **Help → Setup Assistant** (also available in **Settings → MCP Integration**). It opens automatically on a fresh installation when no app preferences or configuration exist and guides you through:
 
-From the repository root:
+1. **Install / Upgrade Helper:** choose an installation folder, normally `~/Library/Application Support/HarsharkNGX/bin`. The bundled helper installs without Xcode or a source checkout.
+2. **Allow shared capture access:** add the installed `HarsharkMCP.app` to **System Settings → Privacy & Security → Full Disk Access** and enable its switch. Click **Check Access**; the status updates every second with a green checkmark when the helper can read shared data. If macOS stops the helper after changing permissions, click **Check Access** again.
+3. **Connect Claude:** copy the configuration entry and merge it into Claude Desktop’s configuration, preserving other servers. Select that file in the assistant to verify changes as you save them, then fully quit and reopen Claude.
+
+Full Disk Access prevents the recurring “would like to access data from other apps” prompt, but grants broad filesystem access. It is optional for ordinary HAR viewing. The assistant checks effective access to HarsharkNGX data, not the Full Disk Access switch or a live Claude connection; it never changes macOS privacy settings or Claude’s configuration. Merely opening the assistant does not start a permission request.
+
+The native MCP server runs independently of the GUI. Claude launches it on demand over stdio; it can read explicitly supplied HAR files or snapshots shared from the app. MCP is enabled by default; use the bottom-right **MCP On / MCP Off** button to optionally disable or re-enable access. An upgrade may require adding or re-enabling the helper’s permission entry.
+
+For a source-based installation, run from the repository root:
 
 ```sh
 cd native/HarsharkNGX
@@ -80,7 +89,7 @@ swift test
 
 [Validation & known limitations](native/HarsharkNGX/VALIDATION.md) · [Performance measurements](native/HarsharkNGX/PERFORMANCE.md) · [Native changelog](native/HarsharkNGX/CHANGELOG.md)
 
-The native migration is still being refined; complete Python feature parity and a signed, packaged release are not yet claimed.
+The native migration is still being refined; complete Python feature parity and Developer ID signing/notarization are not yet claimed. Downloaded builds are ad hoc signed.
 
 ---
 

@@ -1,4 +1,15 @@
-# Native v1.0.0 validation
+# Native v1.0.2 validation
+
+## Current release — 2026-11-02
+
+- Passed 29 Swift core tests, 12 app tests, and all 10 UI tests across the suite and targeted final reruns. Final app tests cover fresh-install setup detection with absent, empty, and existing configuration directories; registered versus persisted preferences; helper upgrade/rollback behavior; content-dependent sizing; and display bounds.
+- UI coverage includes Setup Assistant opening/reopening, capture-driven window growth, reopening the same capture after manually shrinking its window, every request/response inspector tab remaining hittable, narrow-window tabs, keyboard row selection, Settings, multi-file opening, cold-launch file focus, and closing captures.
+- Standalone MCP stdio regression passed. The independent LaunchServices permission-monitor regression verifies live unavailable/granted/error/recovery transitions and process shutdown using temporary fixtures. These checks do not modify Full Disk Access or claim to validate Claude’s own UI.
+- Setup and automatically sized payload screenshots were visually reviewed. The window grows to accommodate long metadata and bounded payload previews; row/payload panes are rebalanced on capture opening. Very large content remains scrollable within the current screen’s usable area. Measurement samples at most 256 rows and 1,024 characters per metadata value, and bounds payload inspection to 64 KiB.
+- The distribution build is universal (arm64 and x86_64), ad hoc signed, and not Developer ID signed or notarized. Intel execution and a complete accessibility audit remain unverified.
+- The release ZIP was extracted and its app/helper versions, universal architectures, code signatures, archive integrity, and standalone MCP behavior verified. A SHA-256 checksum accompanies the ZIP.
+
+## Historical v1.0.0 validation
 
 This is an in-development native application on `feature/native-swift-macos`, not a packaged release. Existing migration work was preserved. Python source and external Claude configuration were not changed, and no merge or force push was performed.
 

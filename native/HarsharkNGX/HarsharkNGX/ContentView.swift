@@ -21,6 +21,9 @@ struct ContentView: View {
             WorkspaceStatus(workspace: workspace)
         }
         .preferredColorScheme(appearance == "System" ? nil : (appearance == "Dark" ? .dark : .light))
+        .onChange(of: workspace.selectedSessionID, initial: true) {
+            MainWindowFocusController.shared.fitCapture(workspace.selectedSession)
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: workspace.chooseFiles) { Label("Open HAR", systemImage: "folder.badge.plus") }
@@ -152,7 +155,7 @@ struct WorkspaceStatus: View {
             }
             Spacer()
             MCPStatusButton(workspace: workspace)
-            Text("1.0.1").foregroundStyle(.tertiary)
+            Text("1.0.2").foregroundStyle(.tertiary)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
