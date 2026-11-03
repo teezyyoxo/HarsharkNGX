@@ -155,7 +155,7 @@ struct WorkspaceStatus: View {
             }
             Spacer()
             MCPStatusButton(workspace: workspace)
-            Text("1.0.2").foregroundStyle(.tertiary)
+            Text("1.0.3").foregroundStyle(.tertiary)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -262,16 +262,19 @@ struct CaptureView: View {
             ToolbarItem {
                 Menu {
                     Button(session.sharedWithMCP ? "Update Shared Snapshot" : "Share Capture with MCP") {
-                        workspace.shareWithMCP(session)
+                        Task { await workspace.shareWithMCP(session) }
                     }
                     if session.sharedWithMCP {
                         Button("Remove Shared Snapshot", role: .destructive) { workspace.removeSharedCopy(session) }
                     }
+                    Text("Captures are shared automatically on open and reload while MCP is on.")
                     Text("Shared snapshots remain available after this window closes.")
                 } label: {
                     Label(session.sharedWithMCP ? "Shared with MCP" : "MCP", systemImage: session.sharedWithMCP ? "checkmark.circle" : "point.3.connected.trianglepath.dotted")
                 }
-                .help("Share a persistent copy with the independent MCP server")
+                .accessibilityIdentifier("captureMCPSharing")
+                .accessibilityLabel(session.sharedWithMCP ? "Shared with MCP" : "Share Capture with MCP")
+                .help("Captures are shared with MCP automatically. Manage the persistent snapshot.")
             }
             ToolbarItem {
                 Button(action: workspace.reload) { Label("Reload", systemImage: "arrow.clockwise") }

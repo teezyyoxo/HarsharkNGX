@@ -144,6 +144,11 @@ final class Workspace {
             let enabled = try !mcpAccess.read().enabled
             try mcpAccess.setEnabled(enabled)
             mcpEnabled = enabled
+            if enabled {
+                for session in sessions where !session.sharedWithMCP {
+                    Task { await shareWithMCP(session) }
+                }
+            }
         } catch {
             errorMessage = "Unable to change MCP access.\n\(error.localizedDescription)"
         }
@@ -267,6 +272,8 @@ final class Workspace {
                     } onCancel: { worker.cancel() }
                     try Task.checkCancellation()
                     let session = HARSession(archive: archive, url: url, name: url.lastPathComponent, rows: rows)
+                    if mcpEnabled { await shareWithMCP(session) }
+                    try Task.checkCancellation()
                     sessions.append(session)
                     restorationBookmarks[url.path] = bookmark
                     persistSessions()
@@ -321,9 +328,14 @@ final class Workspace {
                     try await worker.value
                 } onCancel: { worker.cancel() }
                 try Task.checkCancellation()
-                guard let index = sessions.firstIndex(where: { $0.id == oldID }) else { return }
-                sessions[index].cancel()
+                guard sessions.contains(where: { $0.id == oldID }) else { return }
                 let replacement = HARSession(archive: archive, url: url, name: name, rows: rows)
+                if mcpEnabled {
+                    await shareWithMCP(replacement)
+                }
+                guard !Task.isCancelled, let index = sessions.firstIndex(where: { $0.id == oldID }) else { return }
+                sessions[index].cancel()
+                if replacement.sharedWithMCP && session.sharedWithMCP { removeSharedCopy(session) }
                 sessions[index] = replacement
                 if selectedSessionID == oldID { selectedSessionID = replacement.id }
                 reloadTasks.removeValue(forKey: oldID)
@@ -345,32 +357,27 @@ final class Workspace {
     }
 
     var sharedDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("HarsharkNGX/Sessions", isDirectory: true)
+        mcpAccess.sessionDirectory
     }
 
-    func shareWithMCP(_ session: HARSession) {
-        Task {
-            do {
-                let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("HarsharkNGX/Sessions", isDirectory: true)
-                let data = session.archive.source
-                let id = session.id.uuidString
-                try await Task.detached {
-                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
-                                                           attributes: [.posixPermissions: 0o700])
-                    let url = directory.appendingPathComponent(id).appendingPathExtension("har")
-                    try data.write(to: url, options: .atomic)
-                    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-                }.value
-                session.sharedWithMCP = true
-            } catch { errorMessage = error.localizedDescription }
-        }
+    func shareWithMCP(_ session: HARSession) async {
+        do {
+            let directory = sharedDirectory
+            let data = session.archive.source
+            let id = session.id.uuidString
+            try await Task.detached {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                       attributes: [.posixPermissions: 0o700])
+                let url = directory.appendingPathComponent(id).appendingPathExtension("har")
+                try data.write(to: url, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            }.value
+            session.sharedWithMCP = true
+        } catch { errorMessage = "Unable to share \(session.name) with MCP.\n\(error.localizedDescription)" }
     }
 
     func removeSharedCopy(_ session: HARSession) {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("HarsharkNGX/Sessions", isDirectory: true)
+        let directory = sharedDirectory
         do {
             try FileManager.default.removeItem(at: directory.appendingPathComponent(session.id.uuidString).appendingPathExtension("har"))
             session.sharedWithMCP = false

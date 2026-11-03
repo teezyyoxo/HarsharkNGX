@@ -27,8 +27,8 @@ cat > "$destination/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>com.teezyyoxo.HarsharkNGX.MCP</string>
   <key>CFBundleName</key><string>harsharkngx-mcp</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0.2</string>
-  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>1.0.3</string>
+  <key>CFBundleVersion</key><string>3</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>

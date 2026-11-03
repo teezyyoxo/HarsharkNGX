@@ -32,7 +32,7 @@ final class MCPInstallation {
     var executable: URL { directory.appendingPathComponent("harsharkngx-mcp") }
     var ready: Bool {
         guard let bundle = Bundle(url: bundle),
-              bundle.infoDictionary?["CFBundleShortVersionString"] as? String == "1.0.2",
+              bundle.infoDictionary?["CFBundleShortVersionString"] as? String == "1.0.3",
               let bundledExecutable = bundle.executableURL else { return false }
         return FileManager.default.isExecutableFile(atPath: executable.path)
             && executable.resolvingSymlinksInPath() == bundledExecutable.resolvingSymlinksInPath()
@@ -248,14 +248,14 @@ struct SetupAssistantView: View {
                 Image(systemName: "lock.shield").font(.system(size: 32)).foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Set up Claude & MCP").font(.title2.bold())
-                    Text("HarsharkNGX 1.0.2 · Privacy & permissions").foregroundStyle(.secondary)
+                    Text("HarsharkNGX 1.0.3 · Privacy & permissions").foregroundStyle(.secondary)
                 }
             }.padding(24)
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     step(1, title: "Install the MCP helper", complete: model.installation.ready) {
-                        Text("The helper lets Claude open HAR files and captures you explicitly share. It runs only when Claude or this access check starts it.")
+                        Text("The helper lets Claude and other MCP clients read local HAR files and captures automatically shared when opened in HarsharkNGX. It runs only when a client or this access check starts it.")
                         Text(model.installation.executable.path).font(.caption.monospaced()).textSelection(.enabled)
                         Button(model.installation.ready ? "Reinstall Helper…" : "Install / Upgrade Helper…", action: model.install)
                             .accessibilityIdentifier("installMCPHelper")

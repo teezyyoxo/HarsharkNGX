@@ -58,6 +58,21 @@ with tempfile.TemporaryDirectory(prefix="harshark-mcp-test-") as directory:
             temporary.write_text(json.dumps({"enabled": enabled, "revision": str(uuid.uuid4())}))
             temporary.replace(Path(directory) / ".mcp-access.json")
 
+        # A client discovers captures opened after it connected without restarting.
+        new_id = str(uuid.uuid4()).upper()
+        new_snapshot = Path(directory) / (new_id + ".har")
+        new_snapshot.write_bytes(snapshot.read_bytes())
+        result = exchange("tools/call", {"name": "list_sessions"})["result"]
+        assert new_id in {item["id"] for item in json.loads(result["content"][0]["text"])["sessions"]}
+        assert "isError" not in exchange("tools/call", {"name": "open_session", "arguments": {"id": new_id}})["result"]
+        # Supplying a local HAR directly uses the same server, with no GUI/share step.
+        direct = Path(directory) / "Agent supplied capture.har"
+        direct.write_text('{"log":{"entries":[]}}')
+        result = exchange("tools/call", {"name": "load_har", "arguments": {"path": str(direct)}})["result"]
+        assert json.loads(result["content"][0]["text"])["entry_count"] == 0
+        result = exchange("tools/call", {"name": "summarize_har"})["result"]
+        assert json.loads(result["content"][0]["text"])["path"] == str(direct)
+
         set_access(False)
         assert "result" in exchange("ping"), "Disabled server should keep the client connection healthy"
         for name, arguments in [
@@ -90,8 +105,14 @@ with tempfile.TemporaryDirectory(prefix="harshark-mcp-test-") as directory:
     def payload(identifier):
         return json.loads(replies[identifier]["result"]["content"][0]["text"])
 
-    assert replies[initialize]["result"]["serverInfo"]["version"] == "1.0.2"
+    assert replies[initialize]["result"]["serverInfo"]["version"] == "1.0.3"
     assert len(replies[discovery]["result"]["tools"]) == 8
+    assert "automatically shared" in replies[initialize]["result"]["instructions"]
+    for descriptor in replies[discovery]["result"]["tools"]:
+        assert descriptor["annotations"] == {
+            "readOnlyHint": True, "destructiveHint": False,
+            "idempotentHint": True, "openWorldHint": False,
+        }, descriptor["name"]
     assert replies[unloaded]["result"]["isError"]
     assert payload(sessions)["sessions"][0]["id"] == session_id
     assert payload(opened)["entry_count"] == 6

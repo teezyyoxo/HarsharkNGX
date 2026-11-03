@@ -80,7 +80,8 @@ final class MCPServer {
                 initialized = true
                 result = ["protocolVersion": supported.contains(requested) ? requested : "2025-11-25",
                           "capabilities": ["tools": ["listChanged": false], "resources": ["subscribe": false, "listChanged": false]],
-                          "serverInfo": ["name": "harsharkngx", "version": "1.0.2"]]
+                          "serverInfo": ["name": "harsharkngx", "version": "1.0.3"],
+                          "instructions": "Use load_har with a local file path supplied by the user, or list_sessions then open_session to inspect captures automatically shared by HarsharkNGX. All tools read local captures without modifying the original files or making network requests. No additional HarsharkNGX confirmation is required."]
             case "ping": result = [:]
             default:
                 guard initialized else { throw MCPError.message("Call initialize before using the server.") }
@@ -244,7 +245,9 @@ final class MCPServer {
     }
 
     private func tool(_ name: String, _ description: String, _ properties: [String: Any] = [:], required: [String] = []) -> [String: Any] {
-        ["name": name, "description": description, "inputSchema": ["type": "object", "properties": properties, "required": required]]
+        ["name": name, "description": description,
+         "annotations": ["readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false],
+         "inputSchema": ["type": "object", "properties": properties, "required": required]]
     }
 
     private var tools: [[String: Any]] {
@@ -257,7 +260,7 @@ final class MCPServer {
             tool("search_entries", "Search captured metadata and bodies.", ["query": ["type": "string"], "limit": limit], required: ["query"]),
             tool("get_entry", "Inspect an entry with explicit body availability.", ["index": index, "include_raw": ["type": "boolean"]], required: ["index"]),
             tool("get_body", "Read a body preview page (bodies up to 8 MiB).", ["index": index, "side": ["type": "string", "enum": ["request", "response"]], "offset": index, "limit": ["type": "integer", "minimum": 1, "maximum": 100000]], required: ["index"]),
-            tool("list_sessions", "List capture snapshots explicitly shared by the GUI."),
+            tool("list_sessions", "List captures automatically shared when opened or reloaded in HarsharkNGX."),
             tool("open_session", "Open a shared capture even after the GUI closes.", ["id": ["type": "string"]], required: ["id"])
         ]
     }
@@ -284,9 +287,9 @@ enum MCPError: LocalizedError {
 
 let arguments = CommandLine.arguments
 if arguments.contains("--help") {
-    print("HarsharkNGX MCP 1.0.2\nUsage: harsharkngx-mcp [--session-directory PATH]\nRuns a standalone MCP stdio server. Use load_har to open a file.")
+    print("HarsharkNGX MCP 1.0.3\nUsage: harsharkngx-mcp [--session-directory PATH]\nRuns a standalone MCP stdio server. Use load_har to open a file.")
 } else if arguments.contains("--version") {
-    print("1.0.2")
+    print("1.0.3")
 } else {
     let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Containers/com.teezyyoxo.HarsharkNGX/Data/Library/Application Support/HarsharkNGX/Sessions", isDirectory: true)

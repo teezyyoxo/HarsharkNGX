@@ -2,6 +2,17 @@
 
 This changelog tracks the native macOS application separately from the Python application's release history.
 
+## 1.0.3 — 2026-11-03
+
+### Changed
+- HAR files opened through any GUI entry point are automatically shared as persistent, unredacted MCP snapshots while MCP is on. Reloading replaces the previous snapshot after successful publication. Re-enabling MCP publishes open captures that are not shared yet; an existing MCP Off preference is preserved.
+- MCP tool discovery declares all eight tools local, read-only, non-destructive, and idempotent. Initialization explains direct `load_har` usage and automatic session discovery to compatible agents. HarsharkNGX adds no per-capture or per-tool confirmation; client and macOS permissions remain under their respective apps' control.
+- Updated setup, settings, and MCP documentation for automatic sharing and other local stdio MCP clients alongside Claude.
+- Native app, redacted-export metadata, and MCP versions are now `1.0.3` (app build `3`).
+
+### Validation
+- Passed 29 core tests, 15 app tests, three targeted UI checks across the suite and final rerun, and the stdio MCP regression against the development and bundled release helpers. Built a universal arm64/x86_64 app and helper with ad hoc signing; client approval UI remains client-controlled.
+
 ## 1.0.2 — 2026-11-02
 
 ### Added

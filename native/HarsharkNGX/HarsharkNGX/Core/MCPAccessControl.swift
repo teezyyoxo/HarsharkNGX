@@ -7,14 +7,14 @@ nonisolated public struct MCPAccessControl: Sendable {
         public let revision: UUID?
     }
 
-    private let directory: URL
+    public let sessionDirectory: URL
 
     public init(sessionDirectory: URL) {
-        directory = sessionDirectory
+        self.sessionDirectory = sessionDirectory
     }
 
     public func read() throws -> State {
-        let url = directory.appendingPathComponent(".mcp-access.json")
+        let url = sessionDirectory.appendingPathComponent(".mcp-access.json")
         do {
             return try JSONDecoder().decode(State.self, from: Data(contentsOf: url))
         } catch CocoaError.fileReadNoSuchFile {
@@ -25,11 +25,11 @@ nonisolated public struct MCPAccessControl: Sendable {
 
     public func setEnabled(_ enabled: Bool) throws {
         try FileManager.default.createDirectory(
-            at: directory, withIntermediateDirectories: true,
+            at: sessionDirectory, withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
         let state = State(enabled: enabled, revision: UUID())
-        let url = directory.appendingPathComponent(".mcp-access.json")
+        let url = sessionDirectory.appendingPathComponent(".mcp-access.json")
         try JSONEncoder().encode(state).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }

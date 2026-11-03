@@ -1,10 +1,10 @@
 # Native MCP integration
 
-The native `harsharkngx-mcp` executable is a separate Swift process. Claude starts it over stdio. It does not connect to the GUI, launch a TCP listener, require Python, or need a LaunchAgent.
+The native `harsharkngx-mcp` executable is a separate Swift process. Claude or any other client supporting local stdio MCP servers starts it on demand. It reads the same capture snapshots published by HarsharkNGX, without a TCP listener, Python, or a LaunchAgent.
 
 ## Install
 
-In v1.0.2, open **Help → Setup Assistant** (or **Settings → MCP Integration → Open Setup Assistant**). The assistant opens automatically only when no existing app preferences or configuration are found; upgrades and configured installations keep their existing startup behavior. Choose **Install / Upgrade Helper**, then select the installation folder; the default is `~/Library/Application Support/HarsharkNGX/bin`. The bundled helper requires no Xcode or source checkout.
+In v1.0.3, open **Help → Setup Assistant** (or **Settings → MCP Integration → Open Setup Assistant**). The assistant opens automatically only when no existing app preferences or configuration are found; upgrades and configured installations keep their existing startup behavior. Choose **Install / Upgrade Helper**, then select the installation folder; the default is `~/Library/Application Support/HarsharkNGX/bin`. The bundled helper requires no Xcode or source checkout.
 
 For installation from source, run `./scripts/install-mcp.sh` from this directory. Both methods install `HarsharkMCP.app` and a stable command symlink at:
 
@@ -25,6 +25,8 @@ Replace only the existing `harsharkngx` entry in Claude Desktop's `mcpServers` c
 
 Remove the old Python `--bridge` configuration. The native app never starts the old TCP service, so there is no competing listener. Each client owns its own stdio subprocess and loaded capture.
 
+For another MCP-compatible agent, register that same absolute executable path as a local stdio server with no arguments. Clients have their own configuration formats; the JSON above is the server entry for clients using `mcpServers`. This is a local server, so a remote-only client needs a local MCP connection capable of launching the helper.
+
 ## Privacy and permissions
 
 Claude starts the helper each time it opens. The helper reads the MCP toggle from the app’s protected container, which can cause macOS to display “harsharkngx-mcp would like to access data from other apps.” To prevent repeated prompts:
@@ -42,7 +44,7 @@ An upgraded or re-signed helper may need to be re-added or re-enabled in Full Di
 
 ## Optional on/off control
 
-MCP is enabled by default, and Claude can launch it without opening the app. The bottom-right **MCP On / MCP Off** button optionally disables or enables capture access. Your choice persists across app and server restarts; the indicator shows access permission, not whether a client is connected.
+MCP is enabled by default, and clients can launch it without opening the app. The bottom-right **MCP On / MCP Off** button optionally disables or enables capture access and automatic sharing. Your choice persists across app and server restarts; the indicator shows access permission, not whether a client is connected. Turning access on automatically shares any open captures that have no shared snapshot.
 
 While off, tools and resource reads are blocked. Existing clients remain connected and can resume after you turn access on and reload a capture. Shared snapshots are kept. Install the updated executable and restart Claude once to enable this control for previously installed servers.
 
@@ -50,12 +52,16 @@ The setting is stored in `.mcp-access.json` in the shared sessions directory. Se
 
 ## Files and shared GUI sessions
 
-- `load_har` opens a local file directly, whether or not the GUI is running.
-- In the GUI's MCP toolbar menu, **Share Capture with MCP** publishes a private snapshot. Sharing is explicit because captures can contain credentials and personal data.
-- `list_sessions` discovers published snapshots; `open_session` loads one by UUID. It remains available after closing the window or quitting the app.
-- **Remove Shared Snapshot** removes the published copy for an open capture. To remove snapshots from earlier app runs, delete the corresponding UUID `.har` files in the directory below. Closing a window does not delete published captures.
+- `load_har` opens a local file directly, whether or not the GUI is running. Give the agent a path readable by the local helper; an attachment kept only in a remote agent's storage must first be saved locally.
+- Opening a capture automatically publishes a private, unredacted snapshot while MCP is on. This applies to file dialogs, Finder/Dock opens, drag-and-drop, samples, and restored captures. Reloading publishes the replacement and removes that capture's previous shared snapshot after the new snapshot succeeds.
+- `list_sessions` discovers published snapshots, including captures opened after the client connected; `open_session` loads one by UUID. A snapshot remains available after closing the window or quitting the app. After a reload, call `list_sessions` again to open the replacement snapshot.
+- The GUI's MCP toolbar menu shows **Shared with MCP** and retains **Update Shared Snapshot** and **Remove Shared Snapshot** controls. Removing a snapshot keeps it removed until it is shared again, reloaded, reopened, or MCP is re-enabled. To remove snapshots from earlier app runs, delete the corresponding UUID `.har` files in the directory below. Closing a window does not delete published captures.
 - The default shared directory for the sandboxed app is `~/Library/Containers/com.teezyyoxo.HarsharkNGX/Data/Library/Application Support/HarsharkNGX/Sessions`.
 - A custom directory can be supplied with `--session-directory /absolute/path`. The server does not infer or silently change a GUI selection.
+
+For example, ask your connected agent: “Use HarsharkNGX to load `/absolute/path/capture.har` and find failed requests,” or “Use HarsharkNGX to list shared captures, open the relevant session, and inspect the slowest requests.” The agent can call the MCP tools directly; no shell commands or GUI automation are needed for analysis.
+
+HarsharkNGX has no additional per-file or per-tool approval dialogs. All eight tools advertise `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, and `openWorldHint: false`: they inspect local data, preserve original files, and make no network requests. These annotations describe behavior to the client; each agent app controls its own tool approval policy, and macOS controls system permission prompts. The server cannot suppress those prompts.
 
 ## Tools and resources
 

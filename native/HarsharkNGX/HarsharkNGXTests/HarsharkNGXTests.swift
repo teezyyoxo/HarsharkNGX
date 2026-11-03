@@ -109,6 +109,107 @@ struct HarsharkNGXTests {
         #expect(workspace.errorMessage != nil)
     }
 
+    @Test @MainActor func openedCapturesAreSharedAutomaticallyAndReloadReplacesSnapshot() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let access = MCPAccessControl(sessionDirectory: directory.appendingPathComponent("Sessions"))
+        let workspace = Workspace(mcpAccess: access)
+        let urls = ["First.har", "Second.json"].map { directory.appendingPathComponent($0) }
+        let original = Data(#"{"log":{"entries":[{"request":{"url":"https://original.test","headers":[{"name":"Authorization","value":"secret"}]},"response":{}}]}}"#.utf8)
+        for url in urls { try original.write(to: url) }
+        workspace.open(urls)
+        for _ in 0..<200 {
+            if workspace.sessions.count == 2 { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(workspace.sessions.count == 2)
+        #expect(workspace.errorMessage == nil)
+        for session in workspace.sessions {
+            #expect(session.sharedWithMCP)
+            let snapshot = workspace.sharedDirectory.appendingPathComponent(session.id.uuidString + ".har")
+            #expect(try Data(contentsOf: snapshot) == original)
+            let attributes = try FileManager.default.attributesOfItem(atPath: snapshot.path)
+            #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        }
+        let previous = try #require(workspace.selectedSession)
+        let previousSnapshot = workspace.sharedDirectory.appendingPathComponent(previous.id.uuidString + ".har")
+        let updated = Data(#"{"log":{"entries":[{"request":{"url":"https://updated.test"},"response":{}}]}}"#.utf8)
+        try updated.write(to: urls[1])
+        workspace.reload()
+        for _ in 0..<200 {
+            if workspace.selectedSessionID != previous.id { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let replacement = try #require(workspace.selectedSession)
+        #expect(replacement.id != previous.id)
+        #expect(replacement.sharedWithMCP)
+        let snapshot = workspace.sharedDirectory.appendingPathComponent(replacement.id.uuidString + ".har")
+        #expect(try Data(contentsOf: snapshot) == updated)
+        #expect(!FileManager.default.fileExists(atPath: previousSnapshot.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: workspace.sharedDirectory.path).count == 2)
+
+        try Data("invalid HAR".utf8).write(to: urls[1])
+        workspace.reload()
+        for _ in 0..<200 {
+            if workspace.errorMessage != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(workspace.errorMessage != nil)
+        #expect(workspace.selectedSessionID == replacement.id)
+        #expect(try Data(contentsOf: snapshot) == updated)
+        workspace.close(replacement)
+        #expect(try Data(contentsOf: snapshot) == updated)
+        workspace.removeSharedCopy(replacement)
+        #expect(!FileManager.default.fileExists(atPath: snapshot.path))
+    }
+
+    @Test @MainActor func enablingMCPAutomaticallySharesCapturesOpenedWhileOff() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let access = MCPAccessControl(sessionDirectory: directory.appendingPathComponent("Sessions"))
+        try access.setEnabled(false)
+        let workspace = Workspace(mcpAccess: access)
+        let url = directory.appendingPathComponent("Private.har")
+        try Data(#"{"log":{"entries":[]}}"#.utf8).write(to: url)
+        workspace.open([url])
+        for _ in 0..<200 {
+            if !workspace.sessions.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let session = try #require(workspace.sessions.first)
+        let snapshot = workspace.sharedDirectory.appendingPathComponent(session.id.uuidString + ".har")
+        #expect(!session.sharedWithMCP)
+        #expect(!FileManager.default.fileExists(atPath: snapshot.path))
+        workspace.toggleMCP()
+        for _ in 0..<200 {
+            if session.sharedWithMCP { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(session.sharedWithMCP)
+        #expect(try Data(contentsOf: snapshot) == Data(contentsOf: url))
+    }
+
+    @Test @MainActor func sharingFailureKeepsCaptureOpenAndReportsError() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let access = MCPAccessControl(sessionDirectory: directory.appendingPathComponent("Sessions"))
+        let workspace = Workspace(mcpAccess: access)
+        try Data().write(to: access.sessionDirectory)
+        let url = directory.appendingPathComponent("Capture.har")
+        try Data(#"{"log":{"entries":[]}}"#.utf8).write(to: url)
+        workspace.open([url])
+        for _ in 0..<200 {
+            if !workspace.sessions.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let session = try #require(workspace.sessions.first)
+        #expect(!session.sharedWithMCP)
+        #expect(workspace.errorMessage?.contains("Unable to share Capture.har with MCP") == true)
+    }
+
     @Test @MainActor func captureLifecyclePreservesOtherSessionsAndReleasesClosedSession() throws {
         let workspace = Workspace()
         func session() throws -> HARSession {
@@ -167,7 +268,8 @@ struct HarsharkNGXTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let urls = ["One.har", "Two.har"].map { directory.appendingPathComponent($0) }
         for url in urls { try Data(#"{"log":{"entries":[]}}"#.utf8).write(to: url) }
-        let first = Workspace(defaults: defaults)
+        let access = MCPAccessControl(sessionDirectory: directory.appendingPathComponent("Sessions"))
+        let first = Workspace(defaults: defaults, mcpAccess: access)
         first.open(urls)
         for _ in 0..<200 {
             if first.sessions.count == 2 { break }
@@ -175,7 +277,7 @@ struct HarsharkNGXTests {
         }
         #expect(first.sessions.count == 2)
         #expect((defaults.array(forKey: "captureBookmarks") as? [Data])?.count == 2)
-        let restored = Workspace(defaults: defaults)
+        let restored = Workspace(defaults: defaults, mcpAccess: access)
         restored.startup()
         for _ in 0..<200 {
             if restored.sessions.count == 2 { break }

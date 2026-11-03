@@ -1,6 +1,14 @@
-# Native v1.0.2 validation
+# Native v1.0.3 validation
 
-## Current release — 2026-11-02
+## Current build — 2026-11-03
+
+- Passed 29 Swift core tests and all 15 native app tests. New coverage verifies automatic publication of multiple captures, exact unredacted bytes, private snapshot permissions, reload replacement, failed-reload retention, persistent snapshots after closing, removal, sharing failure recovery, and automatic publication when MCP is re-enabled. Restoration tests use an isolated shared directory.
+- Three targeted UI checks passed across the suite and final rerun: external multi-file opening, Setup Assistant opening/reopening, and sample opening/filtering with an automatically shared capture and no sheet. The sharing toolbar menu now exposes an explicit accessibility label; the first assertion exposed macOS's icon-only menu title and was corrected by adding that label.
+- The stdio MCP harness passed against both the development executable and the universal release's bundled helper. It verifies tool annotations, initialization instructions, discovery of snapshots created after connection, direct loading of an agent-supplied local path with spaces, inspection/search/resources, access toggles, errors, and EOF shutdown.
+- Built the app and bundled helper as universal arm64/x86_64 binaries, version `1.0.3`, build `3`, with ad hoc signing. Packaged a local ZIP and SHA-256 checksum. This build is not published, Developer ID signed, or notarized; Intel execution and Claude/other agents' own approval UI remain unverified.
+- `git diff --check` passed. Native macOS privacy prompts and each MCP client's approval policy remain controlled by those applications.
+
+## Previous release — 2026-11-02
 
 - Passed 29 Swift core tests, 12 app tests, and all 10 UI tests across the suite and targeted final reruns. Final app tests cover fresh-install setup detection with absent, empty, and existing configuration directories; registered versus persisted preferences; helper upgrade/rollback behavior; content-dependent sizing; and display bounds.
 - UI coverage includes Setup Assistant opening/reopening, capture-driven window growth, reopening the same capture after manually shrinking its window, every request/response inspector tab remaining hittable, narrow-window tabs, keyboard row selection, Settings, multi-file opening, cold-launch file focus, and closing captures.
@@ -21,7 +29,7 @@ Settings contains working persisted controls for startup/restoration, duplicate 
 
 Bodies preserve distinct missing, null, empty, malformed, unsupported, binary, successfully decoded, and preview-limited states. File-backed snapshots defer body decoding. Formatting/search previews are bounded; full selected-body export can still materialize a large body. The conservative redacted-summary export removes payloads, headers, cookies, URL credentials/path/query, and unknown fields; it retains hostnames and is deliberately lossy. It does not modify the original capture.
 
-The standalone MCP server processes requests while stdin remains open. It operates on explicitly loaded files or explicitly shared persistent snapshots, independently of the GUI. Installation and exact Claude configuration are in [MCP-SETUP.md](MCP-SETUP.md).
+The standalone MCP server processes requests while stdin remains open. It operates on explicitly loaded files or persistent snapshots automatically shared by the GUI while MCP is on. Installation and client configuration are in [MCP-SETUP.md](MCP-SETUP.md).
 
 ## Executed validation
 
@@ -42,5 +50,5 @@ The standalone MCP server processes requests while stdin remains open. It operat
 - The MCP harness validates a real stdio connection. Claude's own connection UI still needs confirmation after restarting Claude to replace any old subprocess.
 - Performance measurements cover the core process, not the full GUI or Instruments. The 50,000-entry workload retained approximately 90.45 MiB RSS after scope release; allocator retention and metadata costs merit further profiling. No memory improvement relative to Python is claimed.
 - Full selected-body export and some large metadata operations can still allocate substantially. The app does not expose an unimplemented cache control.
-- Full Python feature parity, distribution signing/notarization, and release packaging are not certified by these checks. The old Python GUI bridge is intentionally replaced by explicit file/shared-snapshot MCP access; it does not mirror live GUI selection.
+- Full Python feature parity and distribution signing/notarization are not certified by these checks. The old Python GUI bridge is replaced by local file/shared-snapshot MCP access; it does not mirror live GUI selection.
 - No annotation/editing model is implemented, so there are no unsaved capture edits to prompt for.

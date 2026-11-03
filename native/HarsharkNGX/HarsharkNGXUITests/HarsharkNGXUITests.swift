@@ -103,6 +103,10 @@ final class HarsharkNGXUITests: XCTestCase {
         capture(app, name: "Native HAR viewer")
         XCTAssertTrue(tableExists)
         XCTAssertTrue(app.staticTexts["6 of 6 requests"].waitForExistence(timeout: 5))
+        let sharing = app.descendants(matching: .any).matching(identifier: "captureMCPSharing").firstMatch
+        XCTAssertTrue(sharing.waitForExistence(timeout: 5))
+        XCTAssertEqual(sharing.label, "Shared with MCP")
+        XCTAssertFalse(app.sheets.firstMatch.exists)
         XCTAssertFalse(app.staticTexts["Captured body is empty."].exists)
         XCTAssertTrue(app.buttons["responseHeaders"].exists)
         app.buttons["responseHeaders"].click()

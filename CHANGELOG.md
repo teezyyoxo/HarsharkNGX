@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Native 1.0.3 — 2026-11-03
+
+- Opened and reloaded HAR captures are automatically shared with MCP while access is on. Re-enabling MCP also shares captures already open.
+- Added local read-only MCP tool annotations and agent instructions, with direct HAR loading available to Claude and other local stdio MCP clients without extra HarsharkNGX confirmation dialogs.
+- Bumped the native app and bundled helper to 1.0.3 (build 3). See the [native changelog](native/HarsharkNGX/CHANGELOG.md).
+
 ## Native 1.0.2 — 2026-11-02
 
 - Added a privacy and permissions Setup Assistant with bundled MCP installation, live shared-data access checkmarks, and live Claude configuration verification.

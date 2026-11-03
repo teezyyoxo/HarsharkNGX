@@ -207,7 +207,7 @@ private struct PrivacyPreferences: View {
     @State private var message = ""
     var body: some View {
         Section("Local data") {
-            Text("Original captures and full-body exports can contain credentials. MCP sharing publishes an explicit, unredacted copy that survives quitting the app.")
+            Text("Original captures and full-body exports can contain credentials. While MCP is on, opening or reloading a capture automatically publishes an unredacted copy that survives quitting the app. Use MCP Off to disable access and automatic sharing.")
             Button("Show Shared Snapshots") {
                 do {
                     try FileManager.default.createDirectory(at: workspace.sharedDirectory, withIntermediateDirectories: true)
