@@ -12,7 +12,9 @@
 
 ![HarsharkNGX showing the sample capture, request table, and waterfall timings](native/HarsharkNGX/docs/screenshots/overview.png)
 
-**Native v1.0.2 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.2). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
+**Native v1.0.3 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.3). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
+
+**New in 1.0.3:** opened and reloaded HARs become available to MCP automatically. Claude and other local MCP agents can also load a HAR directly, with no extra HarsharkNGX confirmation steps. See the [1.0.3 release notes](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.3) for changes and upgrade instructions.
 
 ## Explore your captures
 
@@ -67,7 +69,7 @@ Open **Help → Setup Assistant** (also available in **Settings → MCP Integrat
 
 Full Disk Access prevents the recurring “would like to access data from other apps” prompt, but grants broad filesystem access. It is optional for ordinary HAR viewing. The assistant checks effective access to HarsharkNGX data, not the Full Disk Access switch or a live Claude connection; it never changes macOS privacy settings or Claude’s configuration. Merely opening the assistant does not start a permission request.
 
-The current native source version is **1.0.3**. The MCP server runs independently of the GUI. Claude or any other client supporting local stdio MCP servers launches it on demand. In 1.0.3, opening or reloading a HAR automatically shares its full snapshot while MCP is on, including captures opened through Finder, drag-and-drop, the sample, or restoration. Clients discover these with `list_sessions` and `open_session`. You can also give an agent a local HAR path and have it call `load_har` directly, without opening the GUI first.
+The MCP server runs independently of the GUI. Claude or any other client supporting local stdio MCP servers launches it on demand. In 1.0.3, opening or reloading a HAR automatically shares its full snapshot while MCP is on, including captures opened through Finder, drag-and-drop, the sample, or restoration. Clients discover these with `list_sessions` and `open_session`. You can also give an agent a local HAR path and have it call `load_har` directly, without opening the GUI first.
 
 MCP is enabled by default; use the bottom-right **MCP On / MCP Off** button to disable or re-enable access. Turning it on shares captures already open. HarsharkNGX adds no per-capture or per-tool confirmation. Tools declare their local, read-only behavior through standard MCP annotations; macOS and the agent app still control their own permission prompts. Use the same installed executable in other clients’ local MCP server settings. An upgrade may require adding or re-enabling the helper’s permission entry.
 

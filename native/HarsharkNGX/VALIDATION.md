@@ -1,11 +1,11 @@
 # Native v1.0.3 validation
 
-## Current build — 2026-11-03
+## Current release — 2026-11-03
 
 - Passed 29 Swift core tests and all 15 native app tests. New coverage verifies automatic publication of multiple captures, exact unredacted bytes, private snapshot permissions, reload replacement, failed-reload retention, persistent snapshots after closing, removal, sharing failure recovery, and automatic publication when MCP is re-enabled. Restoration tests use an isolated shared directory.
 - Three targeted UI checks passed across the suite and final rerun: external multi-file opening, Setup Assistant opening/reopening, and sample opening/filtering with an automatically shared capture and no sheet. The sharing toolbar menu now exposes an explicit accessibility label; the first assertion exposed macOS's icon-only menu title and was corrected by adding that label.
 - The stdio MCP harness passed against both the development executable and the universal release's bundled helper. It verifies tool annotations, initialization instructions, discovery of snapshots created after connection, direct loading of an agent-supplied local path with spaces, inspection/search/resources, access toggles, errors, and EOF shutdown.
-- Built the app and bundled helper as universal arm64/x86_64 binaries, version `1.0.3`, build `3`, with ad hoc signing. Packaged a local ZIP and SHA-256 checksum. This build is not published, Developer ID signed, or notarized; Intel execution and Claude/other agents' own approval UI remain unverified.
+- Built the app and bundled helper as universal arm64/x86_64 binaries, version `1.0.3`, build `3`, with ad hoc signing. The [published release](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.3) includes the ZIP and SHA-256 checksum. It is not Developer ID signed or notarized; Intel execution and Claude/other agents' own approval UI remain unverified.
 - `git diff --check` passed. Native macOS privacy prompts and each MCP client's approval policy remain controlled by those applications.
 
 ## Previous release — 2026-11-02
