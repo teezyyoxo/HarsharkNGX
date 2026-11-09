@@ -59,6 +59,11 @@ struct RequestTable: NSViewRepresentable {
             item.target = context.coordinator
             copyMenu.addItem(item)
         }
+        copyMenu.addItem(.separator())
+        let utcItem = NSMenuItem(title: "Show Started in UTC (Zulu)", action: #selector(Coordinator.toggleUTC(_:)), keyEquivalent: "")
+        utcItem.target = context.coordinator
+        copyMenu.addItem(utcItem)
+        copyMenu.delegate = context.coordinator
         table.menu = copyMenu
         context.coordinator.table = table
         scroll.documentView = table
@@ -109,7 +114,7 @@ struct RequestTable: NSViewRepresentable {
         }
     }
 
-    @MainActor final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    @MainActor final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
         static let columns: [(String, String, CGFloat)] = [
             ("started", "Started", 115), ("method", "Method", 65), ("status", "Status", 55),
             ("protocol", "Protocol", 80), ("host", "Host", 165), ("path", "Path", 240),
@@ -127,8 +132,8 @@ struct RequestTable: NSViewRepresentable {
         private let timestamp = ISO8601DateFormatter()
         private let localTime: DateFormatter = {
             let formatter = DateFormatter()
-            formatter.dateStyle = .none
-            formatter.timeStyle = .medium
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-dd-MM HH:mm:ss"
             return formatter
         }()
         weak var table: NSTableView?
@@ -142,7 +147,18 @@ struct RequestTable: NSViewRepresentable {
         private func startedText(_ value: String) -> String {
             guard timestampStyle != "ISO",
                   let date = fractionalTimestamp.date(from: value) ?? timestamp.date(from: value) else { return value }
-            return localTime.string(from: date)
+            localTime.timeZone = timestampStyle == "UTC" ? TimeZone(identifier: "UTC")! : .current
+            return localTime.string(from: date) + (timestampStyle == "UTC" ? "Z" : "")
+        }
+
+        @objc func toggleUTC(_ sender: NSMenuItem) {
+            UserDefaults.standard.set(timestampStyle == "UTC" ? "Local" : "UTC", forKey: "timestampStyle")
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            for item in menu.items where item.action == #selector(toggleUTC(_:)) {
+                item.state = UserDefaults.standard.string(forKey: "timestampStyle") == "UTC" ? .on : .off
+            }
         }
         func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
 

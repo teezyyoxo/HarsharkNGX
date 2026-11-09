@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Native 1.0.4 — 2026-11-09
+
+- The Started column now shows date and time (`yyyy-dd-MM HH:mm:ss`) in the system time zone, with an option to show UTC (Zulu) from the View menu, the request-row context menu, or Settings > Timestamps.
+- Added more space between the inspector tabs (Body, Parameters, and others).
+- Bumped the native app and bundled helper to 1.0.4 (build 4). See the [native changelog](native/HarsharkNGX/CHANGELOG.md).
+
 ## Native 1.0.3 — 2026-11-03
 
 - Opened and reloaded HAR captures are automatically shared with MCP while access is on. Re-enabling MCP also shares captures already open.

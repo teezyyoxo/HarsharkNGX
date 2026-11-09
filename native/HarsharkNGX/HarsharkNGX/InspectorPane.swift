@@ -51,7 +51,7 @@ struct InspectorPane: View {
                 .help("Inspector options").accessibilityLabel(response ? "Response options" : "Request options")
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 3)], alignment: .leading, spacing: 3) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 12)], alignment: .leading, spacing: 3) {
                     ForEach(HARDetailTab.allCases.filter { !response || $0 != .saml }) { item in
                         Button { tab = item } label: {
                             Text(item.rawValue)

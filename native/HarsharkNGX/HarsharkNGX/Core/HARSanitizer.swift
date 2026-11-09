@@ -39,7 +39,7 @@ nonisolated public enum HARSanitizer {
         }
         let value = JSONValue.object(["log": .object([
             "version": .string("1.2"),
-            "creator": .object(["name": .string("HarsharkNGX redacted summary"), "version": .string("1.0.3")]),
+            "creator": .object(["name": .string("HarsharkNGX redacted summary"), "version": .string("1.0.4")]),
             "entries": .array(entries)
         ])])
         let encoder = JSONEncoder()

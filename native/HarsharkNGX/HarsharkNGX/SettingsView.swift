@@ -99,6 +99,7 @@ private struct GeneralPreferences: View {
         Section("Timestamps") {
             Picker("Started column", selection: $timestampStyle) {
                 Text("Local time").tag("Local")
+                Text("UTC (Zulu)").tag("UTC")
                 Text("Original ISO timestamp").tag("ISO")
             }
             Text("Hover over Started to see the full original timestamp and time zone.")

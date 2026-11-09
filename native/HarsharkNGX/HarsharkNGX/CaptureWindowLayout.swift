@@ -11,7 +11,7 @@ import AppKit
             var width = max(base, (title as NSString).size(withAttributes: [.font: font]).width + 24)
             if key != "waterfall" {
                 for row in rows.prefix(256) {
-                    let text = key == "started" && timestampStyle != "ISO" ? "12:59:59 PM" : row.value(for: key)
+                    let text = key == "started" && timestampStyle != "ISO" ? "2026-28-12 23:59:59Z" : row.value(for: key)
                     width = max(width, (String(text.prefix(1024)) as NSString).size(withAttributes: [.font: font]).width + 20)
                 }
             }

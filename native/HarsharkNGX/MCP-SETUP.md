@@ -4,7 +4,7 @@ The native `harsharkngx-mcp` executable is a separate Swift process. Claude or a
 
 ## Install
 
-In v1.0.3, open **Help → Setup Assistant** (or **Settings → MCP Integration → Open Setup Assistant**). The assistant opens automatically only when no existing app preferences or configuration are found; upgrades and configured installations keep their existing startup behavior. Choose **Install / Upgrade Helper**, then select the installation folder; the default is `~/Library/Application Support/HarsharkNGX/bin`. The bundled helper requires no Xcode or source checkout.
+In v1.0.4, open **Help → Setup Assistant** (or **Settings → MCP Integration → Open Setup Assistant**). The assistant opens automatically only when no existing app preferences or configuration are found; upgrades and configured installations keep their existing startup behavior. Choose **Install / Upgrade Helper**, then select the installation folder; the default is `~/Library/Application Support/HarsharkNGX/bin`. The bundled helper requires no Xcode or source checkout.
 
 For installation from source, run `./scripts/install-mcp.sh` from this directory. Both methods install `HarsharkMCP.app` and a stable command symlink at:
 

@@ -58,8 +58,13 @@ struct HarsharkNGXApp: App {
 
 private struct CaptureCommands: Commands {
     let workspace: Workspace
+    @AppStorage("timestampStyle") private var timestampStyle = "Local"
 
     var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Toggle("Show Started in UTC (Zulu)", isOn: Binding(
+                get: { timestampStyle == "UTC" }, set: { timestampStyle = $0 ? "UTC" : "Local" }))
+        }
         CommandGroup(replacing: .newItem) {
             Button("Open HAR…") { Workspace.shared.chooseFiles() }.keyboardShortcut("o")
             Button("Reload Capture") { workspace.reload() }.keyboardShortcut("r")
