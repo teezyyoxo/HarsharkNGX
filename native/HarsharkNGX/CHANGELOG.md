@@ -6,7 +6,7 @@ This changelog tracks the native macOS application separately from the Python ap
 
 ### Changed
 - The Started column shows the date and time (`yyyy-dd-MM HH:mm:ss`) in the system time zone by default. A UTC (Zulu) display, marked with a `Z` suffix, can be toggled from View > Show Started in UTC (Zulu), the request-row context menu, or Settings > Timestamps.
-- Increased spacing between inspector tabs.
+- Removed the extra space between inspector tabs; tabs now wrap using only their natural width.
 - Native app, redacted-export metadata, and MCP versions are now `1.0.4` (app build `4`).
 
 ## 1.0.3 — 2026-11-03

@@ -1,6 +1,36 @@
 import AppKit
 import SwiftUI
 
+/// Left-aligned wrapping layout where each tab takes only its natural width.
+private struct TabFlowLayout: Layout {
+    var spacing: CGFloat
+
+    private func place(_ subviews: Subviews, width: CGFloat) -> (positions: [CGPoint], size: CGSize) {
+        var positions: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += rowHeight + spacing; rowHeight = 0 }
+            positions.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            maxX = max(maxX, x - spacing)
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (positions, CGSize(width: maxX, height: y + rowHeight))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        place(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = place(subviews, width: bounds.width)
+        for (view, point) in zip(subviews, result.positions) {
+            view.place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        }
+    }
+}
+
 struct InspectorPane: View {
     let entry: HAREntry
     let response: Bool
@@ -51,7 +81,7 @@ struct InspectorPane: View {
                 .help("Inspector options").accessibilityLabel(response ? "Response options" : "Request options")
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 12)], alignment: .leading, spacing: 3) {
+            TabFlowLayout(spacing: 3) {
                     ForEach(HARDetailTab.allCases.filter { !response || $0 != .saml }) { item in
                         Button { tab = item } label: {
                             Text(item.rawValue)
@@ -65,6 +95,7 @@ struct InspectorPane: View {
                         .accessibilityAddTraits(tab == item ? .isSelected : [])
                     }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10).padding(.bottom, 8)
             Divider()
             if loading {
