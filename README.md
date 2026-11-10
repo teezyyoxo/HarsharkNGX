@@ -12,9 +12,9 @@
 
 ![HarsharkNGX 1.0.4 in one window split vertically, with the sample capture in light mode on the left and dark mode on the right](native/HarsharkNGX/docs/screenshots/overview.png)
 
->**Native v1.0.4 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.4). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
+>**Native v1.0.5 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.5). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
 
-> **New in 1.0.4:** the Started column shows date and time by default, with an option to display UTC (Zulu) timestamps, and inspector tabs have tighter spacing. See the [1.0.4 release notes](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.4) for upgrade instructions.
+> **New in 1.0.5:** find text in request and response inspectors, highlight matching lines, and navigate matches across preview pages. Searches clear when selecting a different event, and body searches are limited to the configured preview. See the [1.0.5 release notes](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.5) for upgrade instructions.
 
 ## Explore your captures
 
