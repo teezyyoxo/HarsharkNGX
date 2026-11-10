@@ -32,7 +32,7 @@ final class MCPInstallation {
     var executable: URL { directory.appendingPathComponent("harsharkngx-mcp") }
     var ready: Bool {
         guard let bundle = Bundle(url: bundle),
-              bundle.infoDictionary?["CFBundleShortVersionString"] as? String == "1.0.4",
+              bundle.infoDictionary?["CFBundleShortVersionString"] as? String == "1.0.5",
               let bundledExecutable = bundle.executableURL else { return false }
         return FileManager.default.isExecutableFile(atPath: executable.path)
             && executable.resolvingSymlinksInPath() == bundledExecutable.resolvingSymlinksInPath()
@@ -248,7 +248,7 @@ struct SetupAssistantView: View {
                 Image(systemName: "lock.shield").font(.system(size: 32)).foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Set up Claude & MCP").font(.title2.bold())
-                    Text("HarsharkNGX 1.0.4 · Privacy & permissions").foregroundStyle(.secondary)
+                    Text("HarsharkNGX 1.0.5 · Privacy & permissions").foregroundStyle(.secondary)
                 }
             }.padding(24)
             Divider()

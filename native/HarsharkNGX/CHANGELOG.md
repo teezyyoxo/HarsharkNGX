@@ -2,6 +2,11 @@
 
 This changelog tracks the native macOS application separately from the Python application's release history.
 
+## 1.0.5 — 2026-11-10
+
+### Added
+- Find in each request or response inspector, with matching lines highlighted and navigation across preview pages. Searches clear when selecting a different event. Body searches are limited to the configured preview.
+
 ## 1.0.4 — 2026-11-09
 
 ### Changed

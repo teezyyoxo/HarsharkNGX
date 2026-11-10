@@ -105,7 +105,7 @@ with tempfile.TemporaryDirectory(prefix="harshark-mcp-test-") as directory:
     def payload(identifier):
         return json.loads(replies[identifier]["result"]["content"][0]["text"])
 
-    assert replies[initialize]["result"]["serverInfo"]["version"] == "1.0.4"
+    assert replies[initialize]["result"]["serverInfo"]["version"] == "1.0.5"
     assert len(replies[discovery]["result"]["tools"]) == 8
     assert "automatically shared" in replies[initialize]["result"]["instructions"]
     for descriptor in replies[discovery]["result"]["tools"]:

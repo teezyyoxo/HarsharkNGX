@@ -45,6 +45,10 @@ struct InspectorPane: View {
     @State private var detail = HARDetail()
     @State private var loading = false
     @State private var page = 0
+    @State private var searchVisible = false
+    @State private var search = ""
+    @State private var matchIndex = 0
+    @State private var matches: [NSRange] = []
     private let pageSize = 100_000
     @Environment(\.colorScheme) private var colorScheme
 
@@ -67,6 +71,14 @@ struct InspectorPane: View {
                         .font(.callout.monospaced().weight(.semibold))
                         .foregroundStyle(Color(nsColor: colorizeStatus ? NativeColors.status(entry.status ?? 0) : .labelColor))
                 }
+                Button {
+                    searchVisible.toggle()
+                    if !searchVisible { search = "" }
+                } label: { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(.plain)
+                    .help(response ? "Find in response" : "Find in request")
+                    .accessibilityLabel(response ? "Find in response" : "Find in request")
+                    .accessibilityIdentifier(response ? "responseFind" : "requestFind")
                 Menu {
                     Toggle("Pretty Print JSON", isOn: $pretty)
                     Toggle("Word Wrap", isOn: $wordWrap)
@@ -97,6 +109,21 @@ struct InspectorPane: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10).padding(.bottom, 8)
+            if searchVisible {
+                HStack {
+                    TextField("Find in \(tab.rawValue.lowercased())", text: $search)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier(response ? "responseFindText" : "requestFindText")
+                    Text(matches.isEmpty ? "0" : "\(matchIndex + 1) of \(matches.count)")
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary).fixedSize()
+                        .accessibilityIdentifier(response ? "responseFindCount" : "requestFindCount")
+                    Button { navigate(matches, offset: -1) } label: { Image(systemName: "chevron.up") }
+                        .disabled(matches.isEmpty).help("Previous match")
+                    Button { navigate(matches, offset: 1) } label: { Image(systemName: "chevron.down") }
+                        .disabled(matches.isEmpty).help("Next match")
+                }
+                .padding(.horizontal, 14).padding(.bottom, 8)
+            }
             Divider()
             if loading {
                 ProgressView("Preparing \(tab.rawValue.lowercased())…")
@@ -115,7 +142,10 @@ struct InspectorPane: View {
                 }
                 DetailTextView(text: String(detail.text.dropFirst(page * pageSize).prefix(pageSize)),
                                syntax: highlighting ? detail.syntax : "plain", wrap: wordWrap,
-                               theme: syntaxTheme, dark: colorScheme == .dark)
+                               theme: syntaxTheme, dark: colorScheme == .dark, search: search,
+                               visibleMatches: DetailSearch.visibleRanges(matches, in: detail.text, page: page, pageSize: pageSize),
+                               selectedMatch: matches.indices.contains(matchIndex)
+                                   ? DetailSearch.pageRange(for: matches[matchIndex], in: detail.text, page: page, pageSize: pageSize) : nil)
                     .accessibilityIdentifier(response ? "responseText" : "requestText")
                 if detail.text.count > pageSize {
                     HStack {
@@ -132,6 +162,13 @@ struct InspectorPane: View {
             }
         }
         .background(.background)
+        .onChange(of: entry.id) { _, _ in
+            search = ""
+            searchVisible = false
+            matchIndex = 0
+        }
+        .onChange(of: search) { _, _ in selectFirstMatch() }
+        .onChange(of: detail.text) { _, _ in selectFirstMatch() }
         .task(id: request) {
             // Finish small previews in one UI update, without publishing a loading state.
             if let immediate = InspectorPreparation.immediateDetail(entry: entry, response: response,
@@ -154,6 +191,18 @@ struct InspectorPane: View {
             detail = result
             loading = false
         }
+    }
+
+    private func selectFirstMatch() {
+        matchIndex = 0
+        matches = DetailSearch.matches(in: detail.text, query: search)
+        if let first = matches.first { page = DetailSearch.page(for: first, in: detail.text, pageSize: pageSize) }
+    }
+
+    private func navigate(_ matches: [NSRange], offset: Int) {
+        guard !matches.isEmpty else { return }
+        matchIndex = (matchIndex + offset + matches.count) % matches.count
+        page = DetailSearch.page(for: matches[matchIndex], in: detail.text, pageSize: pageSize)
     }
 
     private func copy(_ text: String) {
@@ -187,6 +236,9 @@ struct DetailTextView: NSViewRepresentable {
     let wrap: Bool
     let theme: String
     let dark: Bool
+    let search: String
+    let visibleMatches: [NSRange]
+    let selectedMatch: NSRange?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -213,8 +265,9 @@ struct DetailTextView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? NSTextView else { return }
-        let key = "\(syntax)|\(theme)|\(dark)"
-        if context.coordinator.text != text || context.coordinator.style != key {
+        let key = "\(syntax)|\(theme)|\(dark)|\(search)"
+        let textChanged = context.coordinator.text != text
+        if textChanged || context.coordinator.style != key || context.coordinator.visibleMatches != visibleMatches {
             context.coordinator.text = text
             context.coordinator.style = key
             let attributed = NSMutableAttributedString(string: text, attributes: [
@@ -225,9 +278,16 @@ struct DetailTextView: NSViewRepresentable {
             if text.utf8.count <= 256_000 {
                 SyntaxColors.highlight(attributed, syntax: syntax, theme: theme, dark: dark)
             }
+            DetailSearch.highlightLines(in: attributed, matches: visibleMatches)
             view.textStorage?.setAttributedString(attributed)
-            view.scrollToBeginningOfDocument(nil)
+            if textChanged && selectedMatch == nil { view.scrollToBeginningOfDocument(nil) }
         }
+        if let selectedMatch, textChanged || context.coordinator.selectedMatch != selectedMatch || context.coordinator.search != search {
+            view.scrollRangeToVisible(selectedMatch)
+        }
+        context.coordinator.selectedMatch = selectedMatch
+        context.coordinator.search = search
+        context.coordinator.visibleMatches = visibleMatches
         let shouldWrap = wrap && text.utf8.count <= 1_048_576
         view.isHorizontallyResizable = !shouldWrap
         view.autoresizingMask = shouldWrap ? [.width] : []
@@ -243,6 +303,63 @@ struct DetailTextView: NSViewRepresentable {
     final class Coordinator {
         var text = ""
         var style = ""
+        var selectedMatch: NSRange?
+        var search = ""
+        var visibleMatches: [NSRange] = []
+    }
+}
+
+enum DetailSearch {
+    static func matches(in text: String, query: String) -> [NSRange] {
+        guard !query.isEmpty else { return [] }
+        let source = text as NSString
+        var remaining = NSRange(location: 0, length: source.length)
+        var matches: [NSRange] = []
+        while remaining.length > 0 {
+            let match = source.range(of: query, options: [.caseInsensitive], range: remaining)
+            guard match.location != NSNotFound, match.length > 0 else { break }
+            matches.append(match)
+            let next = NSMaxRange(match)
+            remaining = NSRange(location: next, length: source.length - next)
+        }
+        return matches
+    }
+
+    static func page(for match: NSRange, in text: String, pageSize: Int) -> Int {
+        guard let range = Range(match, in: text) else { return 0 }
+        return text.distance(from: text.startIndex, to: range.lowerBound) / pageSize
+    }
+
+    static func pageRange(for match: NSRange, in text: String, page: Int, pageSize: Int) -> NSRange? {
+        guard page == self.page(for: match, in: text, pageSize: pageSize),
+              let range = Range(match, in: text) else { return nil }
+        let start = text.index(text.startIndex, offsetBy: page * pageSize, limitedBy: text.endIndex) ?? text.endIndex
+        let end = text.index(start, offsetBy: pageSize, limitedBy: text.endIndex) ?? text.endIndex
+        let offset = text[start..<range.lowerBound].utf16.count
+        return NSRange(location: offset, length: min(match.length, text[start..<end].utf16.count - offset))
+    }
+
+    static func visibleRanges(_ matches: [NSRange], in text: String, page: Int, pageSize: Int) -> [NSRange] {
+        let start = text.index(text.startIndex, offsetBy: page * pageSize, limitedBy: text.endIndex) ?? text.endIndex
+        let end = text.index(start, offsetBy: pageSize, limitedBy: text.endIndex) ?? text.endIndex
+        let offset = text[..<start].utf16.count
+        let pageRange = NSRange(location: offset, length: text[start..<end].utf16.count)
+        return matches.compactMap { match in
+            let overlap = NSIntersectionRange(match, pageRange)
+            return overlap.length > 0 ? NSRange(location: overlap.location - offset, length: overlap.length) : nil
+        }
+    }
+
+    static func highlightLines(in text: NSMutableAttributedString, matches: [NSRange]) {
+        let source = text.string as NSString
+        var previousLine = NSRange(location: NSNotFound, length: 0)
+        for match in matches {
+            let line = source.lineRange(for: match)
+            guard line != previousLine else { continue }
+            text.addAttribute(.backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.35),
+                              range: line)
+            previousLine = line
+        }
     }
 }
 

@@ -88,6 +88,38 @@ final class HarsharkNGXUITests: XCTestCase {
     }
 
     @MainActor
+    func testInspectorFindAndSelectionReset() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--sample"]
+        app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"
+        app.launch()
+        let table = app.tables["requestTable"]
+        XCTAssertTrue(table.waitForExistence(timeout: 10))
+        let rows = table.descendants(matching: .tableRow)
+        XCTAssertGreaterThan(rows.count, 1)
+        app.buttons["requestHeaders"].click()
+        app.buttons["requestFind"].click()
+        app.buttons["responseFind"].click()
+        let requestSearch = app.textFields["requestFindText"]
+        let responseSearch = app.textFields["responseFindText"]
+        XCTAssertTrue(requestSearch.waitForExistence(timeout: 5))
+        XCTAssertTrue(responseSearch.waitForExistence(timeout: 5))
+        requestSearch.click()
+        requestSearch.typeText("User-Agent")
+        XCTAssertEqual(app.staticTexts["requestFindCount"].value as? String, "1 of 1")
+        responseSearch.click()
+        responseSearch.typeText("sample-1")
+        XCTAssertEqual(app.staticTexts["responseFindCount"].value as? String, "1 of 1")
+        rows.element(boundBy: 1).click()
+        XCTAssertFalse(requestSearch.exists)
+        XCTAssertFalse(responseSearch.exists)
+        app.buttons["requestFind"].click()
+        app.buttons["responseFind"].click()
+        XCTAssertEqual(app.textFields["requestFindText"].value as? String, "")
+        XCTAssertEqual(app.textFields["responseFindText"].value as? String, "")
+    }
+
+    @MainActor
     func testOpenSampleFilterAndInspect() throws {
         let app = XCUIApplication()
         app.launchEnvironment["HARSHARK_SKIP_SETUP"] = "1"

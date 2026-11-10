@@ -4,6 +4,30 @@ import AppKit
 @testable import HarsharkNGX
 
 struct HarsharkNGXTests {
+    @Test @MainActor func detailSearchHighlightsMatchingLinesAndFindsPages() {
+        let text = "first\nEmoji 🐙 MATCH here\nlast match\n"
+        let matches = DetailSearch.matches(in: text, query: "match")
+        #expect(matches.count == 2)
+        #expect(DetailSearch.matches(in: text, query: "").isEmpty)
+        #expect(DetailSearch.matches(in: text, query: "missing").isEmpty)
+        let attributed = NSMutableAttributedString(string: text)
+        DetailSearch.highlightLines(in: attributed, matches: matches)
+        let source = text as NSString
+        #expect(attributed.attribute(.backgroundColor, at: 0, effectiveRange: nil) == nil)
+        #expect(attributed.attribute(.backgroundColor, at: source.range(of: "Emoji").location, effectiveRange: nil) != nil)
+        #expect(attributed.attribute(.backgroundColor, at: source.range(of: "last").location, effectiveRange: nil) != nil)
+        let pageSize = 10
+        #expect(DetailSearch.page(for: matches[0], in: text, pageSize: pageSize) == 1)
+        let pageRange = DetailSearch.pageRange(for: matches[0], in: text, page: 1, pageSize: pageSize)
+        let pageText = String(text.dropFirst(pageSize).prefix(pageSize)) as NSString
+        #expect(pageRange.map { pageText.substring(with: $0) } == "MATCH")
+        #expect(DetailSearch.pageRange(for: matches[0], in: text, page: 0, pageSize: pageSize) == nil)
+        let crossing = "123456789MATCH!"
+        let crossingMatches = DetailSearch.matches(in: crossing, query: "MATCH")
+        #expect(DetailSearch.visibleRanges(crossingMatches, in: crossing, page: 0, pageSize: 10) == [NSRange(location: 9, length: 1)])
+        #expect(DetailSearch.visibleRanges(crossingMatches, in: crossing, page: 1, pageSize: 10) == [NSRange(location: 0, length: 4)])
+    }
+
     @Test @MainActor func setupAppearsOnlyWithoutExistingPreferencesOrConfiguration() throws {
         let domain = "HarsharkSetupTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: domain))

@@ -155,7 +155,7 @@ struct WorkspaceStatus: View {
             }
             Spacer()
             MCPStatusButton(workspace: workspace)
-            Text("1.0.4").foregroundStyle(.tertiary)
+            Text("1.0.5").foregroundStyle(.tertiary)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
