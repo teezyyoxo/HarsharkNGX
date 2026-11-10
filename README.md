@@ -2,7 +2,7 @@
   <img src="native/HarsharkNGX/HarsharkNGX/Assets.xcassets/AppIcon.appiconset/icon_512x512_2x.png" width="128" height="128" alt="HarsharkNGX shark icon">
 </p>
 <h1 align="center">HarsharkNGX</h1>
-<p align="center"><strong>See the whole request.</strong><br>A native macOS HAR viewer built with SwiftUI and AppKit.</p>
+<p align="center"><strong>See the whole request.</strong><br>A native macOS HAR viewer built with SwiftUI, AppKit, and light/dark mode support.</p>
 <p align="center">
   <a href="#build--run">Build &amp; run</a> ·
   <a href="native/HarsharkNGX/MCP-SETUP.md">MCP setup</a> ·
@@ -10,11 +10,11 @@
   <a href="README-PYSIDE6.md">Python / PySide6 version</a>
 </p>
 
-![HarsharkNGX showing the sample capture, request table, and waterfall timings](native/HarsharkNGX/docs/screenshots/overview.png)
+![HarsharkNGX 1.0.4 in one window split vertically, with the sample capture in light mode on the left and dark mode on the right](native/HarsharkNGX/docs/screenshots/overview.png)
 
-**Native v1.0.4 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.4). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
+>**Native v1.0.4 is available** from [GitHub Releases](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.4). Download the ZIP, extract it, and move `HarsharkNGX.app` to `/Applications`. The app includes its MCP helper and a guided privacy and permissions setup. Prefer the cross-platform Python app? Its original [installation and usage guide](README-PYSIDE6.md) is preserved separately.
 
-**New in 1.0.4:** the Started column shows date and time by default, with an option to display UTC (Zulu) timestamps, and inspector tabs have tighter spacing. See the [1.0.4 release notes](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.4) for upgrade instructions.
+> **New in 1.0.4:** the Started column shows date and time by default, with an option to display UTC (Zulu) timestamps, and inspector tabs have tighter spacing. See the [1.0.4 release notes](https://github.com/teezyyoxo/HarsharkNGX/releases/tag/native-v1.0.4) for upgrade instructions.
 
 ## Explore your captures
 
@@ -24,10 +24,10 @@
 - **Inspect both sides.** Explore request and response bodies, headers, cookies, parameters, and timings with formatted JSON and syntax highlighting.
 - **Make it yours.** Choose system, light, or dark appearance; adjust columns, density, timestamps, and body previews in Settings.
 - **Work locally.** Inspect files on your Mac, export redacted summaries, and automatically make open captures available to MCP clients.
+- **Explore** the bundled sample capture and inspect individual requests and responses.
 
-![Inspecting a sample response in the native macOS app](native/HarsharkNGX/docs/screenshots/response-inspector.png)
+![HarsharkNGX 1.0.4 in one window split vertically, with the selected 403 response in light mode on the left and dark mode on the right](native/HarsharkNGX/docs/screenshots/response-inspector.png)
 
-*Explore the bundled sample capture and inspect individual requests and responses.*
 
 ## Build & run
 
